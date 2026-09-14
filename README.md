@@ -61,15 +61,16 @@ The first run downloads mediapipe's `pose_landmarker_lite.task` model into
 the camera feed with dots on your shoulders/wrists and the live left/right
 motor speeds. Controls:
 
-- **Both hands up, apart** - drive forward; the higher, the faster (up to
-  100% at ~35% of the frame height above the shoulder line).
-- **Hands together** (close to each other) - drive backward at a constant
-  speed.
-- **Raise one hand higher than the other** - steer toward that side (raise
-  your right hand more to turn right, your left hand more to turn left) -
-  tank/differential steering between the left and right drive motors.
-- **Arms down and apart** - stop.
+- **Left hand raised alone** - forward.
+- **Right hand raised alone** - backward.
+- **Both hands raised** - spin left in place.
+- **Hands together** (close to each other) - spin right in place.
+- **Neither hand raised** - stop.
 - **Press `q`** - quits and stops the motors.
+
+(This mapping came from testing on the actual robot - it isn't the most
+"obvious" gesture-to-motion mapping on paper, but it's what felt right with a
+hand on the controls.)
 
 If the car isn't connected, the script still runs in camera preview-only mode
 (useful for tuning the gesture logic without hardware).
