@@ -30,10 +30,12 @@ from mediapipe.tasks.python import BaseOptions, vision
 CARD_COLOR = le.LEGO_COLOR_ORANGE
 CARD_SERIAL = "7572"
 
-# Update these to match the Connection Card plugged into the extra Single Motor
-# (runs at a constant speed the whole time this script is running)
-SINGLE_MOTOR_CARD_COLOR = le.LEGO_COLOR_ORANGE
-SINGLE_MOTOR_CARD_SERIAL = "7572"
+# Update these to match the Connection Card of the SEPARATE Single Motor hub
+# (runs at a constant speed the whole time this script is running). This must
+# be a different card than CARD_COLOR/CARD_SERIAL above if it's a different
+# physical hub - run find_devices.py to read off its real values.
+SINGLE_MOTOR_CARD_COLOR = le.LEGO_COLOR_AZURE
+SINGLE_MOTOR_CARD_SERIAL = "3683"  # placeholder - replace with your Single Motor's actual card
 SINGLE_MOTOR_SPEED = 50  # -100..100, constant while the script runs
 
 CAMERA_INDEX = 0
