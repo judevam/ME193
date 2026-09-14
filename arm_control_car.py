@@ -51,7 +51,8 @@ RAISE_THRESHOLD = 0.05    # fraction of image height a wrist must clear the shou
 TOGETHER_DISTANCE = 0.15  # wrist-to-wrist distance (fraction of frame) below which hands count as "together"
 FORWARD_SPEED = 70        # constant speed (%) - left hand raised alone
 BACKWARD_SPEED = 50       # constant speed (%) - right hand raised alone
-SPIN_SPEED = 60           # constant per-wheel speed (%) for in-place spins
+BOTH_UP_SPIN_SPEED = 100  # per-wheel speed (%) for spin left (both hands raised) - full speed
+STEER_SPIN_SPEED = 30     # per-wheel speed (%) for spin right (hands together) - 50% slower than before
 SEND_THRESHOLD = 3        # only send a new BLE motor command if speed changed by more than this (%)
 
 POSE_LEFT_SHOULDER, POSE_RIGHT_SHOULDER = 11, 12
@@ -108,9 +109,9 @@ def compute_speeds(pose_landmarks):
     hand_distance = math.hypot(left_wrist.x - right_wrist.x, left_wrist.y - right_wrist.y)
 
     if hand_distance < TOGETHER_DISTANCE:
-        return SPIN_SPEED, -SPIN_SPEED       # spin right
+        return STEER_SPIN_SPEED, -STEER_SPIN_SPEED           # spin right
     if left_raised and right_raised:
-        return -SPIN_SPEED, SPIN_SPEED       # spin left
+        return -BOTH_UP_SPIN_SPEED, BOTH_UP_SPIN_SPEED       # spin left, full speed
     if left_raised:
         return FORWARD_SPEED, FORWARD_SPEED
     if right_raised:

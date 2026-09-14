@@ -63,8 +63,9 @@ motor speeds. Controls:
 
 - **Left hand raised alone** - forward.
 - **Right hand raised alone** - backward.
-- **Both hands raised** - spin left in place.
-- **Hands together** (close to each other) - spin right in place.
+- **Both hands raised** - spin left in place, at full speed.
+- **Hands together** (close to each other) - spin right in place, at half the
+  speed of the spin-left gesture (finer steering adjustment).
 - **Neither hand raised** - stop.
 - **Press `q`** - quits and stops the motors.
 
