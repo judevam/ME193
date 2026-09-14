@@ -5,6 +5,10 @@ Raise both arms above your shoulders to drive forward - the higher they go
 other to steer: e.g. right arm higher than left turns the car right.
 Drop both arms to stop.
 
+A separate Single Motor connects independently and spins at a constant speed
+(SINGLE_MOTOR_SPEED) for the entire time this script is running, regardless
+of arm position.
+
 See README.md for setup and a discussion of the sync/async model and the
 mediapipe model's training and limitations.
 """
@@ -21,8 +25,14 @@ from mediapipe.tasks.python import BaseOptions, vision
 # --- Configuration ---------------------------------------------------------
 
 # Update these to match the Connection Card plugged into the car's Double Motor
-CARD_COLOR = le.LEGO_COLOR_AZURE
-CARD_SERIAL = "3683"
+CARD_COLOR = le.LEGO_COLOR_ORANGE
+CARD_SERIAL = "7572"
+
+# Update these to match the Connection Card plugged into the extra Single Motor
+# (runs at a constant speed the whole time this script is running)
+SINGLE_MOTOR_CARD_COLOR = le.LEGO_COLOR_AZURE
+SINGLE_MOTOR_CARD_SERIAL = "3683"
+SINGLE_MOTOR_SPEED = 50  # -100..100, constant while the script runs
 
 CAMERA_INDEX = 0
 
@@ -87,6 +97,14 @@ def main():
     if not connected:
         print("Could not connect to the car - running in camera preview-only mode.")
 
+    spinner = le.SingleMotor()
+    spinner.connect(card_color=SINGLE_MOTOR_CARD_COLOR, card_serial=SINGLE_MOTOR_CARD_SERIAL)
+    spinner_connected = spinner.connected
+    if spinner_connected:
+        spinner.motor_run(speed=SINGLE_MOTOR_SPEED, blocking=False)
+    else:
+        print("Could not connect to the Single Motor - it will not run.")
+
     last_left, last_right = 0.0, 0.0
     start = time.time()
 
@@ -129,6 +147,9 @@ def main():
         if connected:
             car.motor_stop(motor=le.MOTOR_BOTH)
             car.disconnect()
+        if spinner_connected:
+            spinner.motor_stop()
+            spinner.disconnect()
         cap.release()
         cv2.destroyAllWindows()
         landmarker.close()

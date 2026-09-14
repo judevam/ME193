@@ -43,6 +43,11 @@ With a webcam attached and the car's Double Motor powered on, update
 `CARD_COLOR` and `CARD_SERIAL` in `arm_control_car.py` to match its Connection
 Card, then run:
 
+The script also connects to a separate Single Motor (its own Connection Card
+via `SINGLE_MOTOR_CARD_COLOR`/`SINGLE_MOTOR_CARD_SERIAL`) and spins it at a
+constant `SINGLE_MOTOR_SPEED` for as long as the script runs, independent of
+arm gestures.
+
 ```powershell
 python arm_control_car.py
 ```
