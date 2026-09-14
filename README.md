@@ -61,12 +61,14 @@ The first run downloads mediapipe's `pose_landmarker_lite.task` model into
 the camera feed with dots on your shoulders/wrists and the live left/right
 motor speeds. Controls:
 
-- **Raise both arms above your shoulders** - drive forward; the higher, the
-  faster (up to 100% at ~35% of the frame height above the shoulder line).
-- **Raise one arm higher than the other** - steer toward the side with the
-  *lower* arm (tank/differential steering between the left and right drive
-  motors).
-- **Drop both arms** - stop.
+- **Both hands up, apart** - drive forward; the higher, the faster (up to
+  100% at ~35% of the frame height above the shoulder line).
+- **Hands together** (close to each other) - drive backward at a constant
+  speed.
+- **Raise one hand higher than the other** - steer toward that side (raise
+  your right hand more to turn right, your left hand more to turn left) -
+  tank/differential steering between the left and right drive motors.
+- **Arms down and apart** - stop.
 - **Press `q`** - quits and stops the motors.
 
 If the car isn't connected, the script still runs in camera preview-only mode

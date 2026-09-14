@@ -1,9 +1,10 @@
 """Steer a LEGO Education Double Motor car with your arms, tracked via mediapipe Pose.
 
-Raise both arms above your shoulders to drive forward - the higher they go
-(up to MAX_RAISE), the faster the car goes. Raise one arm higher than the
-other to steer: e.g. right arm higher than left turns the car right.
-Drop both arms to stop.
+Raise both hands above your shoulders to drive forward - the higher they go
+(up to MAX_RAISE), the faster the car goes. Bring your hands together (close
+to each other) to drive backward. Raise one hand higher than the other to
+steer toward that side: e.g. raising your right hand more turns the car
+right, raising your left hand more turns it left.
 
 A separate Single Motor connects independently and spins at a constant speed
 (SINGLE_MOTOR_SPEED) for the entire time this script is running, regardless
@@ -13,6 +14,7 @@ See README.md for setup and a discussion of the sync/async model and the
 mediapipe model's training and limitations.
 """
 
+import math
 import time
 import urllib.request
 from pathlib import Path
@@ -42,9 +44,11 @@ MODEL_URL = (
     "pose_landmarker_lite/float16/latest/pose_landmarker_lite.task"
 )
 
-MAX_RAISE = 0.35   # fraction of image height above the shoulder line for 100% throttle
-STEER_GAIN = 140   # scales left/right wrist-height difference into a steering split
-SEND_THRESHOLD = 3  # only send a new BLE motor command if speed changed by more than this (%)
+MAX_RAISE = 0.35        # fraction of image height above the shoulder line for 100% forward throttle
+STEER_GAIN = 140        # scales left/right wrist-height difference into a steering split
+TOGETHER_DISTANCE = 0.15  # wrist-to-wrist distance (fraction of frame) below which hands count as "together"
+BACKWARD_SPEED = 50     # constant reverse speed (%) while hands are together
+SEND_THRESHOLD = 3      # only send a new BLE motor command if speed changed by more than this (%)
 
 POSE_LEFT_SHOULDER, POSE_RIGHT_SHOULDER = 11, 12
 POSE_LEFT_WRIST, POSE_RIGHT_WRIST = 15, 16
@@ -82,14 +86,27 @@ def try_connect(device, card_color, card_serial, label):
 
 
 def compute_speeds(pose_landmarks):
-    """Map one detected pose's shoulder/wrist landmarks to (left, right) motor speeds (-100..100)."""
-    lm = pose_landmarks[0]
-    shoulder_y = (lm[POSE_LEFT_SHOULDER].y + lm[POSE_RIGHT_SHOULDER].y) / 2
-    left_raise = shoulder_y - lm[POSE_LEFT_WRIST].y
-    right_raise = shoulder_y - lm[POSE_RIGHT_WRIST].y
+    """Map one detected pose's shoulder/wrist landmarks to (left, right) motor speeds (-100..100).
 
-    throttle = (left_raise + right_raise) / 2 / MAX_RAISE
-    throttle = max(0.0, min(1.0, throttle)) * 100
+    - Hands together (close to each other) -> drive backward at BACKWARD_SPEED.
+    - Otherwise, both hands raised above the shoulders -> drive forward, faster
+      the higher they go (up to MAX_RAISE).
+    - Raising one hand higher than the other steers toward that side.
+    """
+    lm = pose_landmarks[0]
+    left_wrist, right_wrist = lm[POSE_LEFT_WRIST], lm[POSE_RIGHT_WRIST]
+
+    shoulder_y = (lm[POSE_LEFT_SHOULDER].y + lm[POSE_RIGHT_SHOULDER].y) / 2
+    left_raise = shoulder_y - left_wrist.y
+    right_raise = shoulder_y - right_wrist.y
+
+    hand_distance = math.hypot(left_wrist.x - right_wrist.x, left_wrist.y - right_wrist.y)
+
+    if hand_distance < TOGETHER_DISTANCE:
+        throttle = -BACKWARD_SPEED
+    else:
+        throttle = (left_raise + right_raise) / 2 / MAX_RAISE
+        throttle = max(0.0, min(1.0, throttle)) * 100
 
     steer = (right_raise - left_raise) * STEER_GAIN
 
