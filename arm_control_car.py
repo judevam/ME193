@@ -37,7 +37,7 @@ CARD_SERIAL = "7572"
 # physical hub - run find_devices.py to read off its real values.
 SINGLE_MOTOR_CARD_COLOR = le.LEGO_COLOR_GREEN
 SINGLE_MOTOR_CARD_SERIAL = "0026"  # placeholder - replace with your Single Motor's actual card
-SINGLE_MOTOR_SPEED = 50  # -100..100, constant while the script runs
+SINGLE_MOTOR_SPEED = 75  # -100..100, constant while the script runs
 
 CAMERA_INDEX = 0
 
