@@ -23,7 +23,11 @@ pip install -r requirements.txt
   speed, speeds up after one full rotation, then stops and disconnects.
 - [arm_control_car.py](arm_control_car.py) - drives a LEGO car (Double Motor) with
   your arms: a webcam + mediapipe track your pose, and raising/leveling your
-  arms sets the car's throttle and steering in real time.
+  arms sets the car's throttle and steering in real time. Also runs a second,
+  independent Single Motor at a constant speed.
+- [find_devices.py](find_devices.py) - scans for nearby LEGO Bluetooth
+  hardware and prints each one's real card color/serial - use this if a
+  `connect()` call can't find your hardware.
 
 ## Usage
 
@@ -67,6 +71,14 @@ motor speeds. Controls:
 
 If the car isn't connected, the script still runs in camera preview-only mode
 (useful for tuning the gesture logic without hardware).
+
+**If a device won't connect** even after tapping it with its Connection Card:
+double-check `CARD_COLOR`/`CARD_SERIAL` (or `SINGLE_MOTOR_CARD_*`) actually
+match that specific card - it's easy to leave a placeholder value in place
+(the AZURE/3683 example values from LEGO's own docs look like real values).
+Run `python find_devices.py` while the hardware is powered on and freshly
+tapped to scan for what's actually broadcasting nearby and read off its true
+card color/serial.
 
 ## Answers
 

@@ -43,7 +43,7 @@ MODEL_URL = (
 )
 
 MAX_RAISE = 0.35   # fraction of image height above the shoulder line for 100% throttle
-STEER_GAIN = 220   # scales left/right wrist-height difference into a steering split
+STEER_GAIN = 140   # scales left/right wrist-height difference into a steering split
 SEND_THRESHOLD = 3  # only send a new BLE motor command if speed changed by more than this (%)
 
 POSE_LEFT_SHOULDER, POSE_RIGHT_SHOULDER = 11, 12
