@@ -30,8 +30,8 @@ CARD_SERIAL = "7572"
 
 # Update these to match the Connection Card plugged into the extra Single Motor
 # (runs at a constant speed the whole time this script is running)
-SINGLE_MOTOR_CARD_COLOR = le.LEGO_COLOR_AZURE
-SINGLE_MOTOR_CARD_SERIAL = "3683"
+SINGLE_MOTOR_CARD_COLOR = le.LEGO_COLOR_ORANGE
+SINGLE_MOTOR_CARD_SERIAL = "7572"
 SINGLE_MOTOR_SPEED = 50  # -100..100, constant while the script runs
 
 CAMERA_INDEX = 0
@@ -66,6 +66,21 @@ def make_landmarker():
     return vision.PoseLandmarker.create_from_options(options)
 
 
+def try_connect(device, card_color, card_serial, label):
+    """Connect a LEGO device, treating any connection-time error (e.g. a
+    firmware VersionMismatchError) the same as a failed scan instead of
+    crashing the whole program."""
+    try:
+        device.connect(card_color=card_color, card_serial=card_serial)
+    except Exception as exc:
+        print(f"Could not connect to the {label}: {exc}")
+        return False
+    if not device.connected:
+        print(f"Could not connect to the {label} - not found.")
+        return False
+    return True
+
+
 def compute_speeds(pose_landmarks):
     """Map one detected pose's shoulder/wrist landmarks to (left, right) motor speeds (-100..100)."""
     lm = pose_landmarks[0]
@@ -92,18 +107,16 @@ def main():
         raise RuntimeError("Could not open webcam.")
 
     car = le.DoubleMotor()
-    car.connect(card_color=CARD_COLOR, card_serial=CARD_SERIAL)
-    connected = car.connected
+    connected = try_connect(car, CARD_COLOR, CARD_SERIAL, "car")
     if not connected:
-        print("Could not connect to the car - running in camera preview-only mode.")
+        print("Running in camera preview-only mode.")
 
     spinner = le.SingleMotor()
-    spinner.connect(card_color=SINGLE_MOTOR_CARD_COLOR, card_serial=SINGLE_MOTOR_CARD_SERIAL)
-    spinner_connected = spinner.connected
+    spinner_connected = try_connect(
+        spinner, SINGLE_MOTOR_CARD_COLOR, SINGLE_MOTOR_CARD_SERIAL, "Single Motor"
+    )
     if spinner_connected:
         spinner.motor_run(speed=SINGLE_MOTOR_SPEED, blocking=False)
-    else:
-        print("Could not connect to the Single Motor - it will not run.")
 
     last_left, last_right = 0.0, 0.0
     start = time.time()
@@ -145,11 +158,17 @@ def main():
                 break
     finally:
         if connected:
-            car.motor_stop(motor=le.MOTOR_BOTH)
-            car.disconnect()
+            try:
+                car.motor_stop(motor=le.MOTOR_BOTH)
+                car.disconnect()
+            except Exception as exc:
+                print(f"Error while stopping/disconnecting the car: {exc}")
         if spinner_connected:
-            spinner.motor_stop()
-            spinner.disconnect()
+            try:
+                spinner.motor_stop()
+                spinner.disconnect()
+            except Exception as exc:
+                print(f"Error while stopping/disconnecting the Single Motor: {exc}")
         cap.release()
         cv2.destroyAllWindows()
         landmarker.close()
