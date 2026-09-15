@@ -1,3 +1,4 @@
 legoeducation
 mediapipe
 opencv-python
+numpy
