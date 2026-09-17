@@ -21,13 +21,13 @@ pip install -r requirements.txt
 
 - [single_motor.py](single_motor.py) - connects to a Single Motor, runs it at low
   speed, speeds up after one full rotation, then stops and disconnects.
-- [arm_control_car.py](arm_control_car.py) - drives a LEGO car (Double Motor) with
-  your arms: a webcam + mediapipe track your pose, and raising/leveling your
-  arms sets the car's throttle and steering in real time. Also runs a second,
-  independent Single Motor at a constant speed.
-- [find_devices.py](find_devices.py) - scans for nearby LEGO Bluetooth
-  hardware and prints each one's real card color/serial - use this if a
-  `connect()` call can't find your hardware.
+- [poserace/arm_control_car.py](poserace/arm_control_car.py) - drives a LEGO car
+  (Double Motor) with your arms: a webcam + mediapipe track your pose, and
+  raising/leveling your arms sets the car's throttle and steering in real
+  time. Also runs a second, independent Single Motor at a constant speed.
+- [poserace/find_devices.py](poserace/find_devices.py) - scans for nearby LEGO
+  Bluetooth hardware and prints each one's real card color/serial - use this
+  if a `connect()` call can't find your hardware.
 
 ## Usage
 
@@ -44,20 +44,20 @@ python single_motor.py
 ### Arm-controlled race car
 
 With a webcam attached and the car's Double Motor powered on, update
-`CARD_COLOR` and `CARD_SERIAL` in `arm_control_car.py` to match its Connection
-Card, then run:
+`CARD_COLOR` and `CARD_SERIAL` in `poserace/arm_control_car.py` to match its
+Connection Card, then run:
+
+```powershell
+python poserace/arm_control_car.py
+```
 
 The script also connects to a separate Single Motor (its own Connection Card
 via `SINGLE_MOTOR_CARD_COLOR`/`SINGLE_MOTOR_CARD_SERIAL`) and spins it at a
 constant `SINGLE_MOTOR_SPEED` for as long as the script runs, independent of
 arm gestures.
 
-```powershell
-python arm_control_car.py
-```
-
 The first run downloads mediapipe's `pose_landmarker_lite.task` model into
-`models/` (not committed to git - it's fetched automatically). A window shows
+`poserace/models/` (not committed to git - it's fetched automatically). A window shows
 the camera feed with dots on your shoulders/wrists and the live left/right
 motor speeds. Controls:
 
@@ -80,7 +80,7 @@ If the car isn't connected, the script still runs in camera preview-only mode
 double-check `CARD_COLOR`/`CARD_SERIAL` (or `SINGLE_MOTOR_CARD_*`) actually
 match that specific card - it's easy to leave a placeholder value in place
 (the AZURE/3683 example values from LEGO's own docs look like real values).
-Run `python find_devices.py` while the hardware is powered on and freshly
+Run `python poserace/find_devices.py` while the hardware is powered on and freshly
 tapped to scan for what's actually broadcasting nearby and read off its true
 card color/serial.
 
