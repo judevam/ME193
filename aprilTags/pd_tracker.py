@@ -29,7 +29,7 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from matplotlib.widgets import Slider
 
-from lelib import singleMotor, doubleMotor
+from aprilTags.lelib import singleMotor, doubleMotor
 
 # --- Bluetooth card info for your hardware ---------------------------------
 # Both devices pair with the same LEGO connection card (same color+serial
