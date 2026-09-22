@@ -6,7 +6,14 @@ Power on the hardware and tap it with its Connection Card (pairing mode)
 before running this.
 """
 
+import sys
+
 import legoeducation as le
+
+# Advertised device names can contain emoji/non-ASCII characters; Windows'
+# console defaults to a codepage (cp1252) that can't encode those and would
+# otherwise crash this print loop before showing any card info.
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 TIMEOUT_SECONDS = 5
 

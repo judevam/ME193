@@ -29,6 +29,42 @@ pip install -r requirements.txt
   Bluetooth hardware and prints each one's real card color/serial - use this
   if a `connect()` call can't find your hardware.
 
+### aprilTags/
+
+A separate project built around closing a camera-based control loop with an
+AprilTag - a fiducial marker (like a QR code, but designed for precise,
+robust pose/position detection) a detector can find and decode from a
+single frame. Everything here extends the same target/actual -> speed
+control idea as `pd_tracker.py`, just with a camera standing in for a
+second motor's shaft position as the sensor.
+
+- [aprilTags/pd_tracker.py](aprilTags/pd_tracker.py) - the PD demo the rest
+  of this folder is built on: turn a Single Motor by hand and watch a
+  Double Motor track its angle, with live Kp/Kd sliders so you can see rise
+  time, overshoot, and settling change in real time.
+- [aprilTags/generate_apriltag.py](aprilTags/generate_apriltag.py) -
+  generates a printable AprilTag image (family `36h11`) to tape to the car.
+- [aprilTags/apriltag_centroid.py](aprilTags/apriltag_centroid.py) -
+  detection only, no motor control: finds an AprilTag in the webcam feed,
+  draws a red outline and centroid dot on it, and prints its pixel
+  coordinates. The starting point the two trackers below build on.
+- [aprilTags/apriltag_pd_tracker.py](aprilTags/apriltag_pd_tracker.py) - the
+  car carries the tag and drives back and forth in front of a stationary
+  webcam; a PD controller centers it in frame, speeding up the farther
+  off-center (or farther away) the tag is and slowing down as it nears the
+  line.
+- [aprilTags/apriltag_seek_tracker.py](aprilTags/apriltag_seek_tracker.py) -
+  the mirror image of the PD tracker above: a phone-streamed camera is
+  mounted on the car instead, and it centers itself on a tag sitting still
+  on the desk. Same control loop, swapped setup.
+- [aprilTags/lelib.py](aprilTags/lelib.py) - shared LEGO Education wrapper
+  used by every script above (connection retry logic, IMU heading helpers,
+  card-tap reading, etc.) - see its own docstring for the full API.
+
+Run any of these from the repo root, e.g. `python aprilTags/apriltag_pd_tracker.py`.
+Each file's own docstring documents its tunable constants (`CARD_COLOR`,
+`Kp`/`Kd` ranges, speed limits, ...) in more detail than belongs here.
+
 ## Usage
 
 ### Single Motor
