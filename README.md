@@ -19,15 +19,49 @@ pip install -r requirements.txt
 
 ## Files
 
-- [single_motor.py](single_motor.py) - connects to a Single Motor, runs it at low
-  speed, speeds up after one full rotation, then stops and disconnects.
+### basics/
+
+- [basics/single_motor.py](basics/single_motor.py) - connects to a Single
+  Motor, runs it at low speed, speeds up after one full rotation, then stops
+  and disconnects.
+- [basics/find_devices.py](basics/find_devices.py) - scans for nearby LEGO
+  Bluetooth hardware and prints each one's real card color/serial - use this
+  if a `connect()` call can't find your hardware.
+
+### poserace/
+
 - [poserace/arm_control_car.py](poserace/arm_control_car.py) - drives a LEGO car
   (Double Motor) with your arms: a webcam + mediapipe track your pose, and
   raising/leveling your arms sets the car's throttle and steering in real
   time. Also runs a second, independent Single Motor at a constant speed.
-- [poserace/find_devices.py](poserace/find_devices.py) - scans for nearby LEGO
-  Bluetooth hardware and prints each one's real card color/serial - use this
-  if a `connect()` call can't find your hardware.
+
+### mqtt/
+
+A small MQTT pub/sub demo built on [`paho-mqtt`](https://pypi.org/project/paho-mqtt/).
+
+- [mqtt/mqttlib.py](mqtt/mqttlib.py) - thin `MQTTClient` wrapper around
+  `paho.mqtt.client` (connect/publish/subscribe helpers).
+- [mqtt/pubsub_demo.py](mqtt/pubsub_demo.py) - publishes and subscribes on a
+  topic to show the round trip working end to end.
+- [mqtt/listen.py](mqtt/listen.py) - subscribes to a topic and prints
+  incoming messages.
+- [mqtt/publish.py](mqtt/publish.py) - publishes a single message to a topic
+  and exits (`python publish.py ME193/Rogers start`), or listens on one and
+  prints incoming messages until Ctrl+C (`python publish.py listen
+  ME193/Rogers`).
+
+### imageProcessing/
+
+Standalone OpenCV exercises (no LEGO hardware involved) used to build up the
+image-processing pieces the AprilTag trackers depend on.
+
+- [imageProcessing/grayscale_image.py](imageProcessing/grayscale_image.py) -
+  loads an image and displays its grayscale conversion.
+- [imageProcessing/grayscale_slider.py](imageProcessing/grayscale_slider.py) -
+  same, with a live threshold slider.
+- [imageProcessing/threshold_morphology_slider.py](imageProcessing/threshold_morphology_slider.py) -
+  live sliders for threshold + morphological open/close, to see how each
+  parameter cleans up a binary mask.
 
 ### aprilTags/
 
@@ -70,11 +104,11 @@ Each file's own docstring documents its tunable constants (`CARD_COLOR`,
 ### Single Motor
 
 With the virtual environment activated and a Single Motor connected via its
-Connection Card, update `CARD_COLOR` and `CARD_SERIAL` in `single_motor.py` to
-match your card, then run:
+Connection Card, update `CARD_COLOR` and `CARD_SERIAL` in
+`basics/single_motor.py` to match your card, then run:
 
 ```powershell
-python single_motor.py
+python basics/single_motor.py
 ```
 
 ### Arm-controlled race car
@@ -116,7 +150,7 @@ If the car isn't connected, the script still runs in camera preview-only mode
 double-check `CARD_COLOR`/`CARD_SERIAL` (or `SINGLE_MOTOR_CARD_*`) actually
 match that specific card - it's easy to leave a placeholder value in place
 (the AZURE/3683 example values from LEGO's own docs look like real values).
-Run `python poserace/find_devices.py` while the hardware is powered on and freshly
+Run `python basics/find_devices.py` while the hardware is powered on and freshly
 tapped to scan for what's actually broadcasting nearby and read off its true
 card color/serial.
 

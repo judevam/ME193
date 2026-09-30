@@ -16,7 +16,7 @@ Usage:
 
 from mqttlib import MQTTClient
 
-TOPIC = "ME193"
+TOPIC = "ME193/Rogers"
 
 
 def on_message(topic, payload):

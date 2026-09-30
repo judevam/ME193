@@ -1,0 +1,6 @@
+pyaudio       # record_spectrogram.py, whistle_car.py — records from the microphone
+numpy         # record_spectrogram.py, whistle_car.py — audio sample array handling / FFT
+scipy         # record_spectrogram.py — signal.spectrogram
+matplotlib    # record_spectrogram.py, whistle_car.py — live plots
+legoeducation # whistle_car.py, worldcup.py — LEGO hub BLE protocol (lelib.py)
+paho-mqtt     # worldcup.py, mqtt_driver.py — MQTT pub/sub (mqttlib.py)

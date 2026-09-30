@@ -20,10 +20,10 @@ Setting up the phone stream:
     same address plus "/video" into VIDEO_SOURCE below, e.g.
     "http://192.168.1.23:8080/video". Phone and PC must be on the same
     Wi-Fi network.
-  iPhone -- install "Iriun Webcam" (free) plus its Windows companion app
-    from https://iriun.com on this PC. It installs the phone as a regular
-    virtual webcam instead of a network stream -- once connected, set
-    VIDEO_SOURCE to an integer (try 1, then 2, etc.) the same way
+  iPhone -- install "Camo" (free, Reincubate) plus its Windows companion app
+    from https://reincubate.com/camo/ on this PC. It installs the phone as a
+    regular virtual webcam instead of a network stream -- once connected,
+    set VIDEO_SOURCE to an integer (try 1, then 2, etc.) the same way
     CAMERA_INDEX works in apriltag_pd_tracker.py, no URL needed.
 
 Update CARD_COLOR/CARD_SERIAL below to match your Double Motor's Connection
@@ -51,14 +51,16 @@ import legoeducation as le
 from lelib import doubleMotor
 
 # --- Hardware ---------------------------------------------------------------
-CARD_COLOR = le.LEGO_COLOR_PURPLE  # placeholder - replace with your Double Motor's actual card
-CARD_SERIAL = "5164"               # placeholder - replace with your Double Motor's actual card
+CARD_COLOR = le.LEGO_COLOR_ORANGE  # placeholder - replace with your Double Motor's actual card
+CARD_SERIAL = "7572"               # placeholder - replace with your Double Motor's actual card
 
 # --- Vision -------------------------------------------------------------
 FAMILY = cv2.aruco.DICT_APRILTAG_36h11
-VIDEO_SOURCE = 1  # Iriun Webcam showed up as index 1 on this PC (the other
-                   # open index, 0, is the laptop's built-in camera) -- if
-                   # the preview window shows the wrong feed, try 0 instead.
+VIDEO_SOURCE = 1  # confirmed on this PC: 0 is the laptop's built-in camera,
+                   # 1 is Camo. Camo's virtual camera only exists while Camo
+                   # Studio has a phone actively connected -- if the preview
+                   # window below comes up black, check the phone's screen
+                   # is on and the Camo app is in the foreground.
 
 # --- Control ------------------------------------------------------------
 MAX_SPEED = 100          # speed cap sent to the motors, in percent
@@ -117,7 +119,13 @@ def main():
     tag_dict = cv2.aruco.getPredefinedDictionary(FAMILY)
     detector = cv2.aruco.ArucoDetector(tag_dict, cv2.aruco.DetectorParameters())
 
-    cap = cv2.VideoCapture(VIDEO_SOURCE)
+    # cv2.CAP_DSHOW: OpenCV's default backend (MSMF) often fails to open
+    # virtual webcams like Camo on Windows even when the app itself and
+    # other DirectShow-based programs see them fine -- DSHOW works. Only
+    # applies to integer device indices; a network stream URL (the "IP
+    # Webcam" case above) ignores this flag and works either way.
+    backend = cv2.CAP_DSHOW if isinstance(VIDEO_SOURCE, int) else cv2.CAP_ANY
+    cap = cv2.VideoCapture(VIDEO_SOURCE, backend)
     if not cap.isOpened():
         raise RuntimeError(
             f"Could not open video source {VIDEO_SOURCE!r}. If this is a phone "
