@@ -1,18 +1,9 @@
-# Python
+# Arduino App build cache
+.cache/
+# dataset, training runs, weights, raw exports
+laptop/dataset/
+laptop/runs/
+laptop/captures/
+*.pt
+*.zip
 __pycache__/
-*.pyc
-.venv/
-venv/
-
-# Secrets
-.env
-
-# Training artifacts (large / regenerable)
-training/dataset/
-training/runs/
-training/raw_images/
-laptop/models/*.pt
-
-# OS
-Thumbs.db
-.DS_Store

@@ -11,6 +11,7 @@ void clear_matrix();
 
 void setup() {
   matrix.begin();
+  matrix.setGrayscaleBits(3);  // frame values are 0..7
   matrix.clear();
 
   Bridge.begin();
