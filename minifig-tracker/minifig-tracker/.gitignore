@@ -1,0 +1,9 @@
+# Arduino App build cache
+.cache/
+# dataset, training runs, weights, raw exports
+laptop/dataset/
+laptop/runs/
+laptop/captures/
+*.pt
+*.zip
+__pycache__/
