@@ -1,0 +1,5 @@
+name: Minifig Drive
+description: "Drives a Maker Drive motor driver to keep the detected minifig centered in the camera view"
+icon: 🚗
+ports: []
+bricks: []
