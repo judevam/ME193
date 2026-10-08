@@ -53,6 +53,23 @@ MISS_PAUSE_S = 1.2    # time to show "MISS" before the next serve
 START_TAG_ID = 0                  # family 36h11, same as aprilTags/ (aprilTags/apriltag_0.png)
 TAG_HOLD_S = 0.5                  # hold it in one column this long to start
 
+# ── Paddle feedback (Phase 7) ────────────────────────────────────────────────
+# A hit buzzes the paddle and flashes its light; a miss gives a longer, weaker buzz. The buzz is
+# the Double Motor spinning its outputs briefly, so they must have NOTHING structural on them (not
+# the axle your grip hangs on!). An off-centre LEGO piece on a spinning axle makes a stronger buzz,
+# the same way a phone's vibration motor works.
+#   "left" / "right": one output spins
+#   "both":           both spin the same way
+#   "opposite":       both spin at once in opposite directions (a stronger jolt)
+HAPTIC_MOTOR = "opposite"
+HAPTIC = {                     # event -> (buzz ms, motor speed %, light color); 0 ms = light only
+    "hit": (90, 100, "green"),
+    "miss": (350, 45, "red"),
+    "whiff": (0, 0, "orange"),
+}
+LIGHT_FLASH_S = 0.4            # how long the light stays on the event color
+LIGHT_IDLE_COLOR = "blue"      # the light's resting color while playing
+
 # ── Live score ───────────────────────────────────────────────────────────────
 MQTT_BROKER = "test.mosquitto.org"
 MQTT_TOPIC = "ME193/Rogers/Jude"   # current streak as a float, e.g. "3.0"; "0.0" after a miss

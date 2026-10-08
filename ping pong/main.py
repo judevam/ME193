@@ -9,6 +9,10 @@
     python main.py --no-pose         # don't check where your hand is
     python main.py --pose-model full # lite / full / heavy (default: config.POSE_MODEL)
     python main.py --level 2         # skip the start screen and play level 2
+    python main.py --no-haptics      # no buzz / light on the paddle
+
+With the real paddle, a hit buzzes it and flashes its light green; a miss gives a longer, weaker
+buzz and a red flash (paddle_feedback.py; settings in config.py).
 
 The game opens on a start screen: hold up the start tag (python level_tags.py --make prints it)
 in the left / middle / right of the screen to start easy / medium / hard. Keys 1/2/3 do the same.
@@ -279,15 +283,21 @@ def main():
     parser.add_argument("--fake-pose", action="store_true", help="the mouse is your wrist")
     parser.add_argument("--no-pose", action="store_true", help="don't check where your hand is")
     parser.add_argument("--pose-model", choices=("lite", "full", "heavy"), default=config.POSE_MODEL)
+    parser.add_argument("--no-haptics", action="store_true", help="no paddle buzz / light")
     parser.add_argument("--level", type=int, choices=config.LEVEL_TRAVEL_S, help="skip the start screen")
     args = parser.parse_args()
 
     paddle = detector = None
+    from paddle_feedback import NoFeedback
+    feedback = NoFeedback()
     if not args.fake_imu:
         from imu_paddle import DoubleMotorPaddle
         paddle = DoubleMotorPaddle()
         paddle.connect()
         detector = SwingDetector()
+        if not args.no_haptics:
+            from paddle_feedback import PaddleFeedback
+            feedback = PaddleFeedback(paddle.motor)
     cap = None if args.no_camera else open_camera(args.camera)
 
     scoreboard = Scoreboard()
@@ -387,6 +397,7 @@ def main():
                 else:
                     message = MESSAGES[e]
                 message_until = now + MESSAGE_S
+                feedback.send("whiff" if e.startswith("whiff") else e)   # buzz + light on the paddle
                 if e == "hit":
                     burst_t, burst_at = now, ball_screen(1.0, WIDTH, HEIGHT, game.lane, hit_height.y)[0]
                 judged = e == "hit" or e.startswith("whiff")
@@ -408,6 +419,7 @@ def main():
             if spare > 0:
                 time.sleep(spare)
     finally:
+        feedback.stop()
         if camera is not None:
             camera.stop()
         if cap is not None:
