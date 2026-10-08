@@ -1,0 +1,6 @@
+legoeducation   # imu_paddle.py - Double Motor paddle IMU over BLE (lelib.py)
+paho-mqtt       # scoreboard.py - publishes the streak (mqttlib.py)
+numpy           # swing.py, main.py - sample math and frame arrays
+opencv-contrib-python  # main.py, level_tags.py - webcam window + cv2.aruco AprilTags
+mediapipe       # pose_tracker.py - wrist position
+pytest          # tests/ - unit tests for the pure-logic modules
