@@ -14,13 +14,15 @@ The game opens on a start screen: hold up the start tag (python level_tags.py --
 in the left / middle / right of the screen to start easy / medium / hard. Keys 1/2/3 do the same.
 
 The current streak is published to config.MQTT_TOPIC whenever it changes.
-Each ball comes down the left, center or right lane: swing with your wrist in that lane (the dot
-shows where the game thinks your wrist is: green = right lane, red = wrong lane).
+Each ball comes down the left, center or right lane (its column is highlighted): swing with your
+wrist in that column as the shrinking ring closes on the ball. The dot shows where the game thinks
+your wrist is: green = right lane, red = wrong lane.
 
 Keys: space = swing (with --fake-imu), 1/2/3 = start a level, r = back to the start screen, q = quit.
 """
 
 import argparse
+import math
 import time
 
 import cv2
@@ -29,24 +31,33 @@ import numpy as np
 import config
 from game import Game, SERVE, INCOMING, RETURNING, MISSED, ANY_LANE
 from level_tags import LEVEL_NAMES, LevelPicker
-from pose_tracker import lane_of
+from pose_tracker import hand_lane
 from scoreboard import Scoreboard
 from swing import SwingDetector
 
 WINDOW = "Ping Pong (q to quit)"
 WIDTH, HEIGHT = 960, 720
+TARGET_FPS = 60
 
 # Perspective: the wall is a small rectangle near the top, you are at the bottom edge.
 HORIZON_Y = 0.22      # fraction of the height where the wall is
-NEAR_Y = 0.80         # where the ball is when it reaches you (hit zone)
 BALL_R_FAR, BALL_R_NEAR = 6, 46
+PERSPECTIVE = 1.25    # >1: the ball speeds up on screen as it gets close (1 = steady)
+
+# Timing ring: shrinks onto the hit circle, landing exactly when the ball arrives.
+APPROACH_S = 0.8          # shown for the last this-many seconds of the ball's flight
+APPROACH_PX_PER_S = 220   # how fast it shrinks
+BURST_S = 0.3             # length of the hit burst
 
 WHITE, BLACK = (255, 255, 255), (0, 0, 0)
 GREEN, RED, ORANGE, YELLOW = (60, 220, 60), (60, 60, 230), (0, 140, 255), (0, 230, 255)
 
-MESSAGES = {"hit": ("HIT!", GREEN), "miss_early": ("MISS - too early", RED),
-            "miss_late": ("MISS - too late", RED), "miss_lane": ("MISS - wrong spot", RED),
-            "miss_no_hand": ("MISS - hand not seen", RED), "serve": ("Serve!", WHITE)}
+MESSAGES = {"hit": ("HIT!", GREEN), "serve": ("Serve!", WHITE),
+            # whiffs: feedback only, the ball keeps coming
+            "whiff_early": ("Too early!", ORANGE), "whiff_lane": ("Wrong spot!", ORANGE),
+            "whiff_no_hand": ("Hand not seen!", ORANGE)}
+MISS_MESSAGES = {"late": "MISS - too late", "early": "MISS - too early",
+                 "lane": "MISS - wrong spot", "no_hand": "MISS - hand not seen"}
 MESSAGE_S = 0.8
 SWING_FLASH_S = 0.15
 
@@ -59,18 +70,36 @@ def lane_x(lane):
     return (edges[lane] + edges[lane + 1]) / 2
 
 
-def ball_screen(z, w, h, lane=1):
-    """Ball centre and radius on screen for distance z (0 wall .. 1 you, a bit over when missed).
-    It leaves the middle of the wall and spreads out to its lane as it comes closer."""
-    p = z ** 1.6   # perspective-ish: the ball speeds up on screen as it gets close
+class HitHeight:
+    """Screen height (0..1) where the ball reaches you. Follows the wrist's height slowly,
+    stays inside config.HIT_Y_RANGE, and holds still while frozen (once the ball is on its way in)."""
+
+    def __init__(self, default=config.HIT_Y_DEFAULT, y_range=config.HIT_Y_RANGE,
+                 follow_s=config.HIT_Y_FOLLOW_S):
+        self.y = default
+        self.range = y_range
+        self.follow_s = follow_s
+
+    def update(self, wrist_y, dt, frozen=False):
+        if wrist_y is not None and not frozen:
+            target = min(max(wrist_y, self.range[0]), self.range[1])
+            k = 1 - math.exp(-dt / self.follow_s)   # frame-rate independent smoothing
+            self.y += k * (target - self.y)
+        return self.y
+
+
+def ball_screen(z, w, h, lane=1, hit_y=config.HIT_Y_DEFAULT):
+    """Ball centre and radius on screen for distance z (0 wall .. 1 you, over 1 when it gets past).
+    It leaves the middle of the wall and spreads out to its lane, arriving at height hit_y."""
+    p = z ** PERSPECTIVE
     x = w * (0.5 + (lane_x(lane) - 0.5) * p)
-    y = h * (HORIZON_Y + (NEAR_Y - HORIZON_Y) * p)
+    y = h * (HORIZON_Y + (hit_y - HORIZON_Y) * p)
     r = BALL_R_FAR + (BALL_R_NEAR - BALL_R_FAR) * p
     return (int(x), int(y)), max(2, int(r))
 
 
 def draw_table(img):
-    """Translucent table/court lines that give the scene depth."""
+    """Translucent table that gives the scene depth."""
     h, w = img.shape[:2]
     overlay = img.copy()
     far_y, near_y = int(h * HORIZON_Y), h
@@ -80,39 +109,71 @@ def draw_table(img):
     cv2.fillPoly(overlay, [table], (90, 50, 10))
     cv2.addWeighted(overlay, 0.35, img, 0.65, 0, img)
     cv2.polylines(img, [table], True, WHITE, 2, cv2.LINE_AA)
-    # lane dividers, converging on the wall
-    for edge in config.LANE_EDGES:
-        far_x = w // 2 + int((edge - 0.5) * 2 * far_half)
-        cv2.line(img, (far_x, far_y), (int(edge * w), near_y), (200, 200, 200), 1, cv2.LINE_AA)
-    # the wall
     cv2.rectangle(img, (w // 2 - far_half, far_y - int(h * 0.12)), (w // 2 + far_half, far_y), WHITE, 2)
 
 
-def draw_scene(img, game, now, message=None, swing_flash=False, wrist=None):
-    """Draw table, hit zone, ball, wrist and HUD onto img (in place) and return it.
-    wrist: a pose_tracker.Wrist in mirrored-screen coordinates, or None."""
+def draw_lane_column(img, lane, hand_in_lane):
+    """Highlight the screen third the incoming ball is heading for (where the wrist has to be)."""
+    h, w = img.shape[:2]
+    edges = (0.0, *config.LANE_EDGES, 1.0)
+    x0, x1 = int(edges[lane] * w), int(edges[lane + 1] * w)
+    overlay = img.copy()
+    cv2.rectangle(overlay, (x0, int(h * HORIZON_Y)), (x1, h), GREEN if hand_in_lane else WHITE, -1)
+    cv2.addWeighted(overlay, 0.14, img, 0.86, 0, img)
+
+
+def draw_burst(img, center, age):
+    """Hit effect: an expanding ring and rays where the ball was hit, fading over BURST_S."""
+    f = age / BURST_S
+    cx, cy = center
+    radius = int(40 + 90 * f)
+    thick = max(1, int(8 * (1 - f)))
+    cv2.circle(img, center, radius, YELLOW, thick, cv2.LINE_AA)
+    for i in range(10):
+        a = i * 2 * math.pi / 10
+        r0, r1 = radius * 0.6, radius * 1.15
+        p0 = (int(cx + r0 * math.cos(a)), int(cy + r0 * math.sin(a)))
+        p1 = (int(cx + r1 * math.cos(a)), int(cy + r1 * math.sin(a)))
+        cv2.line(img, p0, p1, WHITE, thick, cv2.LINE_AA)
+
+
+def draw_scene(img, game, now, message=None, swing_flash=False, wrist=None, hit_y=config.HIT_Y_DEFAULT,
+               burst=None, fps=None):
+    """Draw table, lane, timing ring, ball, wrist and HUD onto img (in place) and return it.
+    wrist: a pose_tracker.Wrist in mirrored-screen coordinates, or None.
+    hit_y: screen height (0..1) where the ball reaches you (see HitHeight).
+    burst: (seconds since the hit, (x, y) where it happened), or None."""
     h, w = img.shape[:2]
     draw_table(img)
+    in_lane = wrist is not None and hand_lane(wrist.x, game.lane) == game.lane
 
-    # hit zone: where the incoming ball will arrive; lights up green while you can hit it
     if game.state == INCOMING:
-        (zx, zy), zr = ball_screen(1.0, w, h, game.lane)
+        draw_lane_column(img, game.lane, in_lane)
+        # hit circle: where the ball will arrive; lights up green while you can hit it
+        (zx, zy), zr = ball_screen(1.0, w, h, game.lane, hit_y)
         in_window = game.in_hit_window(now)
         cv2.circle(img, (zx, zy), zr + 10, GREEN if in_window else (180, 180, 180), 4 if in_window else 2,
                    cv2.LINE_AA)
+        # timing ring: closes onto the hit circle exactly when the ball gets there
+        tta = game.time_to_arrival(now)
+        if 0 < tta < APPROACH_S:
+            cv2.circle(img, (zx, zy), int(zr + 10 + tta * APPROACH_PX_PER_S), WHITE, 2, cv2.LINE_AA)
 
     if game.state in (SERVE, INCOMING, RETURNING, MISSED):
         z = game.ball_z(now)
-        (bx, by), br = ball_screen(z, w, h, game.lane)
+        (bx, by), br = ball_screen(z, w, h, game.lane, hit_y)
         shadow_y = by + int(br * 1.3)
         cv2.ellipse(img, (bx, shadow_y), (br, max(2, br // 4)), 0, 0, 360, (30, 30, 30), -1, cv2.LINE_AA)
         cv2.circle(img, (bx, by), br, ORANGE, -1, cv2.LINE_AA)
         cv2.circle(img, (bx - br // 3, by - br // 3), max(1, br // 4), (200, 230, 255), -1, cv2.LINE_AA)
 
+    if burst is not None and burst[0] < BURST_S:
+        draw_burst(img, burst[1], burst[0])
+
     if wrist is not None:
         color = (255, 255, 0)
         if game.state == INCOMING:
-            color = GREEN if lane_of(wrist.x) == game.lane else RED
+            color = GREEN if in_lane else RED
         center = (int(wrist.x * w), int(wrist.y * h))
         cv2.circle(img, center, 14, BLACK, -1, cv2.LINE_AA)
         cv2.circle(img, center, 11, color, -1, cv2.LINE_AA)
@@ -125,12 +186,14 @@ def draw_scene(img, game, now, message=None, swing_flash=False, wrist=None):
     if message:
         text, color = message
         size, _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 2.0, 5)
-        org = ((w - size[0]) // 2, int(h * 0.55))
+        org = ((w - size[0]) // 2, int(h * 0.38))
         cv2.putText(img, text, org, cv2.FONT_HERSHEY_SIMPLEX, 2.0, BLACK, 10, cv2.LINE_AA)
         cv2.putText(img, text, org, cv2.FONT_HERSHEY_SIMPLEX, 2.0, color, 5, cv2.LINE_AA)
     if game.last_offset is not None:
         cv2.putText(img, f"last swing {game.last_offset * 1000:+.0f} ms", (20, 125),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, WHITE, 2, cv2.LINE_AA)
+    if fps:
+        cv2.putText(img, fps, (w - 230, h - 15), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (200, 200, 200), 1, cv2.LINE_AA)
     if swing_flash:
         cv2.rectangle(img, (0, 0), (w - 1, h - 1), YELLOW, 12)
     return img
@@ -191,7 +254,20 @@ def open_camera(index):
     if not cap.isOpened():
         print(f"Could not open camera {index}; using a plain background.")
         return None
+    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)   # always hand over the newest frame, not a queued one
     return cap
+
+
+class FpsCounter:
+    def __init__(self):
+        self._t, self._frames, self._cam, self.text = time.perf_counter(), 0, 0, ""
+
+    def tick(self, now, cam_frames):
+        self._frames += 1
+        if now - self._t >= 1.0:
+            cam_fps = (cam_frames - self._cam) / (now - self._t)
+            self.text = f"{self._frames / (now - self._t):.0f} fps  (camera {cam_fps:.0f})"
+            self._t, self._frames, self._cam = now, 0, cam_frames
 
 
 def main():
@@ -218,10 +294,23 @@ def main():
     if not args.no_mqtt:
         scoreboard.connect()
 
-    tag_reader = None
+    cv2.namedWindow(WINDOW)
+    pose = mouse = None
+    if args.fake_pose:
+        from pose_tracker import MousePose
+        mouse = pose = MousePose(WINDOW, WIDTH, HEIGHT)
+    elif not args.no_pose and cap is not None:
+        from pose_tracker import PoseTracker
+        pose = PoseTracker(model=args.pose_model)
+    if pose is None:
+        print("Pose is off: the hand's lane isn't checked.")
+
+    camera = None
     if cap is not None:
+        from camera_worker import CameraWorker
         from level_tags import TagReader
-        tag_reader = TagReader()
+        camera = CameraWorker(cap, (WIDTH, HEIGHT), pose=None if mouse else pose, tag_reader=TagReader())
+
     picker = LevelPicker()
     game, best = None, 0     # game is None on the start screen
 
@@ -235,38 +324,25 @@ def main():
     if args.level:
         game = new_game(args.level, time.perf_counter())
     message, message_until, flash_until = None, 0.0, 0.0
-    cv2.namedWindow(WINDOW)
-
-    pose = None
-    if args.fake_pose:
-        from pose_tracker import MousePose
-        pose = MousePose(WINDOW, WIDTH, HEIGHT)
-    elif not args.no_pose and cap is not None:
-        from pose_tracker import PoseTracker
-        pose = PoseTracker(model=args.pose_model)
-    if pose is None:
-        print("Pose is off: the hand's lane isn't checked.")
+    burst_t, burst_at = -math.inf, (0, 0)
+    hit_height = HitHeight()
+    fps = FpsCounter()
+    last_frame_t = time.perf_counter()
     try:
         while True:
-            frame, tags = None, []
-            if cap is not None:
-                ok, raw = cap.read()
-                if ok:
-                    if pose is not None and game is not None:
-                        pose.process(raw, time.perf_counter())   # un-mirrored: keeps left/right right
-                    if game is None:
-                        rh, rw = raw.shape[:2]
-                        for tag in tag_reader.detect(raw):        # mirror the corners to match the display
-                            if tag.id == config.START_TAG_ID:
-                                tags.append([((rw - x) * WIDTH / rw, y * HEIGHT / rh) for x, y in tag.corners])
-                    frame = cv2.resize(cv2.flip(raw, 1), (WIDTH, HEIGHT))   # mirror, like a mirror
+            loop_start = time.perf_counter()
+            frame, tags, cam_frames = camera.latest() if camera else (None, [], 0)
             if frame is None:
                 frame = blank_background()
-                if pose is not None and cap is None:
-                    pose.process(None, time.perf_counter())   # mouse stand-in needs no frame
+            if camera:
+                camera.track_pose = game is not None
+                camera.find_tags = game is None
+            if mouse is not None:
+                mouse.process(None, loop_start)
 
             key = cv2.waitKey(1) & 0xFF
             now = time.perf_counter()
+            fps.tick(now, cam_frames)
             if key == ord("q"):
                 break
             if key == ord("r"):
@@ -290,29 +366,50 @@ def main():
                 else:
                     draw_start_screen(frame, best, tags, picker.level, picker.progress(now))
                     cv2.imshow(WINDOW, frame)
+                    last_frame_t = now
                     continue
+
             events = []
             for t in swing_times:
-                hand_lane = ANY_LANE
+                lane = ANY_LANE
                 if pose is not None:
                     wrist = pose.history.at(t)
-                    hand_lane = lane_of(wrist.x) if wrist else None
-                events += game.swing(t, hand_lane)
+                    lane = hand_lane(wrist.x, game.lane) if wrist else None
+                events += game.swing(t, lane)
                 flash_until = now + SWING_FLASH_S
             events += game.update(now)
             scoreboard.update(game.streak)   # publishes only when it changed
             best = game.best
 
             for e in events:
-                message, message_until = MESSAGES[e], now + MESSAGE_S
-                judged = e in ("hit", "miss_early", "miss_lane", "miss_no_hand")
+                if e == "miss":
+                    message = (MISS_MESSAGES[game.miss_reason], RED)
+                else:
+                    message = MESSAGES[e]
+                message_until = now + MESSAGE_S
+                if e == "hit":
+                    burst_t, burst_at = now, ball_screen(1.0, WIDTH, HEIGHT, game.lane, hit_height.y)[0]
+                judged = e == "hit" or e.startswith("whiff")
                 timing = f"  swing {game.last_offset * 1000:+5.0f} ms" if judged else ""
-                print(f"{e:12s} streak {game.streak}  best {game.best}{timing}")
+                print(f"{e:13s} streak {game.streak}  best {game.best}{timing}")
 
             wrist = pose.history.latest() if pose is not None else None
-            draw_scene(frame, game, now, message if now < message_until else None, now < flash_until, wrist)
+            if wrist is not None and now - wrist.t > config.WRIST_MAX_AGE_S:
+                wrist = None   # stale: the camera lost the wrist
+            # the hit circle follows the wrist's height, but holds still once the ball is on its way in
+            locked = game.state == INCOMING and game.ball_z(now) >= config.WHIFF_FROM_Z
+            hit_y = hit_height.update(wrist.y if wrist else None, now - last_frame_t, locked)
+            last_frame_t = now
+            draw_scene(frame, game, now, message if now < message_until else None, now < flash_until, wrist,
+                       hit_y, (now - burst_t, burst_at), fps.text)
             cv2.imshow(WINDOW, frame)
+
+            spare = 1 / TARGET_FPS - (time.perf_counter() - loop_start)
+            if spare > 0:
+                time.sleep(spare)
     finally:
+        if camera is not None:
+            camera.stop()
         if cap is not None:
             cap.release()
         cv2.destroyAllWindows()

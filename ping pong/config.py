@@ -31,10 +31,18 @@ DEFAULT_LEVEL = 1
 HIT_EARLY_S = 0.35
 HIT_LATE_S = 0.20
 
-# Swinging before the window is a miss, but only once the ball is this far along its flight
-# (0 = at the wall, 1 = at you). Earlier swings are ignored, so a twitch right after the serve
-# doesn't end your streak.
-EARLY_MISS_FROM_Z = 0.5
+# A swing that isn't a hit (too early, wrong lane, hand not seen) is a "whiff": you get feedback but
+# the ball keeps coming and you can swing again; only the ball getting past you ends the streak.
+# Whiff feedback starts once the ball is this far along (0 = wall, 1 = you); earlier swings are
+# ignored silently.
+WHIFF_FROM_Z = 0.5
+
+# Where the ball reaches you on screen follows the height of your wrist (so backing up or
+# crouching doesn't make you swing early). It follows slowly, freezes while you can hit the ball,
+# and stays within this range of the screen height (0 = top, 1 = bottom).
+HIT_Y_DEFAULT = 0.80          # used when pose is off or the wrist hasn't been seen
+HIT_Y_RANGE = (0.40, 0.85)
+HIT_Y_FOLLOW_S = 0.4          # time constant: how quickly it catches up with the wrist
 
 SERVE_DELAY_S = 1.0   # ball waits at the wall before each serve
 MISS_PAUSE_S = 1.2    # time to show "MISS" before the next serve
@@ -57,6 +65,8 @@ LANE_EDGES = (1 / 3, 2 / 3)
 # The wrist position used for a swing must be at most this old (the camera runs ~30 fps;
 # a fast swing can blur the wrist, so the last good position before the swing is used).
 WRIST_MAX_AGE_S = 0.35
+# A hand this close (fraction of screen width) outside the ball's lane still counts as in it.
+LANE_TOLERANCE = 0.05
 
 # MediaPipe pose model: "lite" (fastest), "full", or "heavy" (most accurate, slowest).
 # Downloaded into models/ on first use. Compare them with: python pose_tracker.py --model full

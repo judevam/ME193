@@ -3,19 +3,22 @@
 Time is always passed in, so tests can fast-forward. The ball's distance is `z`:
 0 = at the wall (far, drawn small), 1 = at you (drawn big).
 
-    serve --(SERVE_DELAY)--> incoming --swing in window--> returning --(travel)--> incoming ...
+    serve --(SERVE_DELAY)--> incoming --good swing in window--> returning --(travel)--> incoming ...
                                  |
-                                 +--swing too early / no swing in time--> missed --(MISS_PAUSE)--> serve
+                                 +--ball gets past you--> missed --(MISS_PAUSE)--> serve
 
-"Too early" only counts in the second half of the ball's flight (EARLY_MISS_FROM_Z); swings while
-the ball is still far away are ignored.
+Each incoming ball picks a lane (0 left, 1 center, 2 right). A hit needs a swing in the hit window
+with the hand in that lane.
 
-Each incoming ball picks a lane (0 left, 1 center, 2 right). A swing in the window only hits if
-the hand was in that lane at the moment of the swing.
+Only a ball getting past you ends the streak. A swing that isn't a hit (too early, wrong lane,
+hand not seen) is a WHIFF: it's reported so the player gets feedback, but the ball keeps coming and
+they can swing again. Whiffs are only reported in the second half of the ball's flight
+(WHIFF_FROM_Z); swings while the ball is still far away are ignored.
 
 Call `swing(t, hand_lane)` for each detected swing (with its own timestamp), then `update(now)`
-once per frame. Both return a list of events: "serve", "hit", "miss_early", "miss_late",
-"miss_lane" (hand in the wrong lane), "miss_no_hand" (pose didn't see the hand).
+once per frame. Both return a list of events: "serve", "hit", "miss", and the whiffs
+"whiff_early", "whiff_lane", "whiff_no_hand". After a "miss", `miss_reason` says why: "late"
+(never swung in time) or the last whiff's reason ("early", "lane", "no_hand").
 """
 
 import random
@@ -36,6 +39,8 @@ class Game:
         self.streak = 0
         self.best = 0
         self.last_offset = None   # last judged swing: seconds after the ball arrived (- = early)
+        self.miss_reason = None   # why the last ball got past: "late", "early", "lane", "no_hand"
+        self._whiff = None        # the current ball's last whiff reason
         self.state = None
         self.lane = 1    # lane of the current ball
         self._rng = rng or random.Random()
@@ -54,28 +59,28 @@ class Game:
         if self.state != INCOMING:
             return []   # ball at the wall / going away / just missed: swinging does nothing
         arrival = self._t0 + self.travel
-        if t < self._t0 + config.EARLY_MISS_FROM_Z * self.travel:
+        if t < self._t0 + config.WHIFF_FROM_Z * self.travel:
             return []   # ball still far away: a practice swing, ignored
+        if t > arrival + self.late:
+            return []   # after the window: update() reports the miss
         self.last_offset = t - arrival
         if t < arrival - self.early:
-            return self._miss(t, "miss_early")
-        if t <= arrival + self.late:
-            if hand_lane is None:
-                return self._miss(t, "miss_no_hand")
-            if hand_lane != ANY_LANE and hand_lane != self.lane:
-                return self._miss(t, "miss_lane")
-            self.streak += 1
-            self.best = max(self.best, self.streak)
-            self._enter(RETURNING, t)
-            return ["hit"]
-        return []   # after the window: update() reports the late miss
+            return self._whiffed("early")
+        if hand_lane is None:
+            return self._whiffed("no_hand")
+        if hand_lane != ANY_LANE and hand_lane != self.lane:
+            return self._whiffed("lane")
+        self.streak += 1
+        self.best = max(self.best, self.streak)
+        self._enter(RETURNING, t)
+        return ["hit"]
 
     def update(self, now):
         """Advance time. Returns the events that happened up to `now`."""
         if self.state == SERVE and now >= self._t0 + config.SERVE_DELAY_S:
             self._enter(INCOMING, self._t0 + config.SERVE_DELAY_S)
         elif self.state == INCOMING and now > self._t0 + self.travel + self.late:
-            return self._miss(self._t0 + self.travel + self.late, "miss_late")
+            return self._miss(self._t0 + self.travel + self.late)
         elif self.state == RETURNING and now >= self._t0 + self.travel:
             # bounced off the wall: comes straight back
             self._enter(INCOMING, self._t0 + self.travel)
@@ -94,8 +99,14 @@ class Game:
         if self.state == RETURNING:
             return max(0.0, 1.0 - dt / self.travel)
         if self.state == MISSED:
-            return 1.0 + self.late / self.travel
+            return 1.0 + (self.late + dt) / self.travel   # keeps flying past you
         return 0.0
+
+    def time_to_arrival(self, now):
+        """Seconds until the incoming ball reaches you (negative once it's late); None otherwise."""
+        if self.state != INCOMING:
+            return None
+        return self._t0 + self.travel - now
 
     def in_hit_window(self, now):
         if self.state != INCOMING:
@@ -110,8 +121,14 @@ class Game:
         self._t0 = t
         if state == INCOMING:
             self.lane = self._rng.choice(LANES)
+            self._whiff = None
 
-    def _miss(self, t, kind):
+    def _whiffed(self, reason):
+        self._whiff = reason
+        return ["whiff_" + reason]
+
+    def _miss(self, t):
+        self.miss_reason = self._whiff or "late"
         self.streak = 0
         self._enter(MISSED, t)
-        return [kind]
+        return ["miss"]

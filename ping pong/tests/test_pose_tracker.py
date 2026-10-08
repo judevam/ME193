@@ -2,7 +2,7 @@
 
 import pytest
 
-from pose_tracker import LEFT, CENTER, RIGHT, Smoother, Wrist, WristHistory, lane_of
+from pose_tracker import LEFT, CENTER, RIGHT, Smoother, Wrist, WristHistory, hand_lane, lane_of
 
 
 @pytest.mark.parametrize("x, lane", [(0.0, LEFT), (0.30, LEFT), (0.5, CENTER), (0.70, RIGHT), (1.0, RIGHT)])
@@ -70,3 +70,16 @@ def test_steady_hand_settles_on_its_position():
     for i in range(1, 15):
         w = s(Wrist(i * 0.03, 0.7, 0.5))
     assert w.x == pytest.approx(0.7, abs=1e-3)
+
+
+# ── Lane tolerance ───────────────────────────────────────────────────────────
+
+
+def test_hand_just_over_the_line_still_counts_for_the_ball_lane():
+    # center lane is 1/3..2/3; 0.31 is just over into "left" but within the 0.05 tolerance
+    assert hand_lane(0.31, CENTER, tolerance=0.05) == CENTER
+
+
+def test_hand_clearly_in_another_lane_is_that_lane():
+    assert hand_lane(0.15, CENTER, tolerance=0.05) == LEFT
+    assert hand_lane(0.90, LEFT, tolerance=0.05) == RIGHT

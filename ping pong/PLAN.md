@@ -50,6 +50,16 @@ Phase 6 code written (`level_tags.py`, start screen in `main.py`; 90 tests pass)
 left = easy, middle = medium, right = hard. Hold 0.5 s in one column; moving column restarts the hold.
 Keys 1/2/3 do the same; r returns to the start screen; best streak carries over.
 Printable tag: `python level_tags.py --make` -> tags/start_tag.png.
+Gameplay tweaks (2026-10-08, after play-testing; 98 tests): only a ball getting past you ends the
+streak. Too early / wrong spot / hand not seen are "whiffs" (feedback, swing again), and the MISS
+message gives the last whiff's reason. The ball now arrives at the wrist's screen height
+(HIT_Y_* in config.py; follows slowly, frozen during the hit window) so backing up doesn't make
+you swing early.
+Feel pass (2026-10-08, 105 tests): camera + pose moved to a background thread (`camera_worker.py`)
+so drawing runs at ~60 fps; FPS counter bottom-right. Timing ring closes onto the hit circle at
+arrival; flatter ball motion (PERSPECTIVE 1.25). Hit burst; a missed ball flies past instead of
+freezing. Ball's lane column is highlighted (screen thirds, same as the wrist zones); the hit circle
+locks once the ball is halfway; LANE_TOLERANCE 0.05 forgives near-the-line hands.
 Next: live test with printed tags, then Phase 7 (haptics etc.).
 Forehand **and** backhand both count (detector uses total gyro size, no direction).
 

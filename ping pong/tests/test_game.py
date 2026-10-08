@@ -38,31 +38,60 @@ def test_swing_in_window_is_a_hit(offset):
     assert g.state == RETURNING
 
 
-def test_too_early_is_a_miss():
+def test_too_early_is_a_whiff_not_a_miss():
     g = started()
-    assert g.swing(ARRIVE - config.HIT_EARLY_S - 0.01) == ["miss_early"]
-    assert g.streak == 0
-    assert g.state == MISSED
+    assert g.swing(ARRIVE - config.HIT_EARLY_S - 0.01) == ["whiff_early"]
+    assert g.state == INCOMING            # ball still coming
+    assert g.swing(ARRIVE) == ["hit"]     # swing again in time: still a hit
+
+
+def test_whiff_does_not_end_the_streak():
+    g = started()
+    g.swing(ARRIVE)                       # streak 1
+    g.update(ARRIVE + TRAVEL)
+    second = ARRIVE + 2 * TRAVEL
+    assert g.swing(second - config.HIT_EARLY_S - 0.05) == ["whiff_early"]
+    assert g.streak == 1
+    assert g.swing(second) == ["hit"]
+    assert g.streak == 2
 
 
 def test_swing_while_ball_is_far_away_is_ignored():
     g = started()
-    far = SERVE_AT + (config.EARLY_MISS_FROM_Z - 0.05) * TRAVEL
+    far = SERVE_AT + (config.WHIFF_FROM_Z - 0.05) * TRAVEL
     assert g.swing(far) == []
     assert g.state == INCOMING
-    assert g.swing(ARRIVE) == ["hit"]     # can still hit the ball afterwards
+    assert g.swing(ARRIVE) == ["hit"]
 
 
-def test_swing_in_second_half_before_window_is_a_miss():
+def test_swing_in_second_half_before_window_is_a_whiff():
     g = started()
-    assert g.swing(SERVE_AT + (config.EARLY_MISS_FROM_Z + 0.05) * TRAVEL) == ["miss_early"]
+    assert g.swing(SERVE_AT + (config.WHIFF_FROM_Z + 0.05) * TRAVEL) == ["whiff_early"]
 
 
 def test_no_swing_is_a_late_miss():
     g = started()
     assert g.update(ARRIVE + config.HIT_LATE_S) == []          # window still open
-    assert g.update(ARRIVE + config.HIT_LATE_S + 0.01) == ["miss_late"]
+    assert g.update(ARRIVE + config.HIT_LATE_S + 0.01) == ["miss"]
     assert g.state == MISSED
+    assert g.miss_reason == "late"
+
+
+def test_miss_reason_is_the_last_whiff():
+    g = started()
+    g.swing(ARRIVE - config.HIT_EARLY_S - 0.05)                # too early...
+    g.swing(ARRIVE, hand_lane=(g.lane + 1) % 3)                # ...then wrong spot
+    assert g.update(ARRIVE + config.HIT_LATE_S + 0.01) == ["miss"]
+    assert g.miss_reason == "lane"
+
+
+def test_whiff_reason_resets_for_the_next_ball():
+    g = started()
+    g.swing(ARRIVE - config.HIT_EARLY_S - 0.05)                # whiff, then hit
+    g.swing(ARRIVE)
+    g.update(ARRIVE + TRAVEL)                                  # next ball: no swing at all
+    g.update(ARRIVE + 2 * TRAVEL + config.HIT_LATE_S + 0.01)
+    assert g.miss_reason == "late"
 
 
 def test_swing_reported_after_frame_but_timestamped_in_window_still_hits():
@@ -162,22 +191,24 @@ def test_hand_in_the_ball_lane_is_a_hit():
     assert g.swing(ARRIVE, hand_lane=g.lane) == ["hit"]
 
 
-def test_hand_in_the_wrong_lane_is_a_miss():
+def test_hand_in_the_wrong_lane_is_a_whiff():
     g = started()
     wrong = (g.lane + 1) % 3
-    assert g.swing(ARRIVE, hand_lane=wrong) == ["miss_lane"]
-    assert g.streak == 0
+    assert g.swing(ARRIVE - 0.1, hand_lane=wrong) == ["whiff_lane"]
+    assert g.state == INCOMING
+    assert g.swing(ARRIVE + 0.1, hand_lane=g.lane) == ["hit"]   # moved over in time
 
 
-def test_hand_not_seen_is_a_miss():
+def test_hand_not_seen_is_a_whiff():
     g = started()
-    assert g.swing(ARRIVE, hand_lane=None) == ["miss_no_hand"]
+    assert g.swing(ARRIVE, hand_lane=None) == ["whiff_no_hand"]
+    assert g.state == INCOMING
 
 
 def test_lane_not_checked_for_early_swings():
     # too early is reported as too early, whatever the hand is doing
     g = started()
-    assert g.swing(ARRIVE - config.HIT_EARLY_S - 0.01, hand_lane=None) == ["miss_early"]
+    assert g.swing(ARRIVE - config.HIT_EARLY_S - 0.01, hand_lane=None) == ["whiff_early"]
 
 
 def test_far_practice_swing_with_hand_anywhere_is_ignored():
@@ -197,3 +228,20 @@ def test_every_lane_comes_up():
         t += 2 * TRAVEL
     assert lanes == {0, 1, 2}
     assert g.streak == 30
+
+
+# ── Drawing helpers (feel pass) ──────────────────────────────────────────────
+
+def test_time_to_arrival():
+    g = started()
+    assert g.time_to_arrival(ARRIVE - 0.5) == pytest.approx(0.5)
+    g.swing(ARRIVE)
+    assert g.time_to_arrival(ARRIVE + 0.1) is None      # going away
+
+
+def test_missed_ball_keeps_flying_past():
+    g = started()
+    g.update(ARRIVE + config.HIT_LATE_S + 0.01)          # missed
+    z1 = g.ball_z(ARRIVE + 0.5)
+    z2 = g.ball_z(ARRIVE + 0.8)
+    assert 1.0 < z1 < z2
