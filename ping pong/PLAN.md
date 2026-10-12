@@ -66,6 +66,15 @@ light only), from a background thread, motor + light in one BLE batch. `python p
 checks the IMU rate and false swings while buzzing. HAPTIC_MOTOR = "opposite" (both outputs spin opposite
 ways in one batch) works on the real paddle (2026-10-08); buzz is light. Stronger: an off-centre LEGO
 beam on each output (eccentric mass), or longer buzz ms in config.HAPTIC.
+Wii-style table (2026-10-12, 134 tests): `table_view.py` renders a 3D regulation table with a pinhole
+camera behind the player (sky, wooden floor, backboard wall with target, net mesh, legs). Orange ball
+follows real arcs: off the wall, bounces on your half, up to the hit point; returns with a bounce on the
+far half; a missed ball flies past. Shadow on the table. Red paddle follows the wrist (lane centres line
+up with LANE_X). Webcam is a small top-right inset with wrist dot and lane lines. Default view; the old
+overlay view is `--view classic`. Renders in ~8 ms/frame. Start screen unchanged (full webcam).
+Paddle animation (2026-10-12, 140 tests): paddle rolls up to 28 deg at the outer lanes (handle angles back
+toward the player) and turns slightly edge-on; every detected swing plays a 0.28 s lunge forward + sweep
+toward the middle (forehand on the right, backhand on the left) with a motion trail. `paddle_pose()`.
 Forehand **and** backhand both count (detector uses total gyro size, no direction).
 
 ## How one hit works

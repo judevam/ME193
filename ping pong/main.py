@@ -10,6 +10,10 @@
     python main.py --pose-model full # lite / full / heavy (default: config.POSE_MODEL)
     python main.py --level 2         # skip the start screen and play level 2
     python main.py --no-haptics      # no buzz / light on the paddle
+    python main.py --view classic    # the old view: ball drawn over the full webcam image
+
+The default view is a Wii Sports Resort-style 3D table (table_view.py) with your webcam in a small
+inset; the red paddle follows your wrist.
 
 With the real paddle, a hit buzzes it and flashes its light green; a miss gives a longer, weaker
 buzz and a red flash (paddle_feedback.py; settings in config.py).
@@ -38,6 +42,7 @@ from level_tags import LEVEL_NAMES, LevelPicker
 from pose_tracker import hand_lane
 from scoreboard import Scoreboard
 from swing import SwingDetector
+from table_view import TableView
 
 WINDOW = "Ping Pong (q to quit)"
 WIDTH, HEIGHT = 960, 720
@@ -284,6 +289,7 @@ def main():
     parser.add_argument("--no-pose", action="store_true", help="don't check where your hand is")
     parser.add_argument("--pose-model", choices=("lite", "full", "heavy"), default=config.POSE_MODEL)
     parser.add_argument("--no-haptics", action="store_true", help="no paddle buzz / light")
+    parser.add_argument("--view", choices=("table", "classic"), default="table")
     parser.add_argument("--level", type=int, choices=config.LEVEL_TRAVEL_S, help="skip the start screen")
     args = parser.parse_args()
 
@@ -334,7 +340,9 @@ def main():
     if args.level:
         game = new_game(args.level, time.perf_counter())
     message, message_until, flash_until = None, 0.0, 0.0
-    burst_t, burst_at = -math.inf, (0, 0)
+    burst_t, burst_at, burst_lane = -math.inf, (0, 0), 1
+    swing_t = -math.inf    # last swing, for the paddle's swing animation
+    table = TableView(WIDTH, HEIGHT) if args.view == "table" else None
     hit_height = HitHeight()
     fps = FpsCounter()
     last_frame_t = time.perf_counter()
@@ -387,6 +395,7 @@ def main():
                     lane = hand_lane(wrist.x, game.lane) if wrist else None
                 events += game.swing(t, lane)
                 flash_until = now + SWING_FLASH_S
+                swing_t = now
             events += game.update(now)
             scoreboard.update(game.streak)   # publishes only when it changed
             best = game.best
@@ -399,7 +408,8 @@ def main():
                 message_until = now + MESSAGE_S
                 feedback.send("whiff" if e.startswith("whiff") else e)   # buzz + light on the paddle
                 if e == "hit":
-                    burst_t, burst_at = now, ball_screen(1.0, WIDTH, HEIGHT, game.lane, hit_height.y)[0]
+                    burst_t, burst_lane = now, game.lane
+                    burst_at = ball_screen(1.0, WIDTH, HEIGHT, game.lane, hit_height.y)[0]
                 judged = e == "hit" or e.startswith("whiff")
                 timing = f"  swing {game.last_offset * 1000:+5.0f} ms" if judged else ""
                 print(f"{e:13s} streak {game.streak}  best {game.best}{timing}")
@@ -411,8 +421,16 @@ def main():
             locked = game.state == INCOMING and game.ball_z(now) >= config.WHIFF_FROM_Z
             hit_y = hit_height.update(wrist.y if wrist else None, now - last_frame_t, locked)
             last_frame_t = now
-            draw_scene(frame, game, now, message if now < message_until else None, now < flash_until, wrist,
-                       hit_y, (now - burst_t, burst_at), fps.text)
+            shown_message = message if now < message_until else None
+            if table is not None:
+                frame = table.render(game, now, wrist=wrist,
+                                     wrist_lane=hand_lane(wrist.x, game.lane) if wrist else None,
+                                     cam_frame=None if camera is None else frame, message=shown_message,
+                                     swing_flash=now < flash_until, burst=(now - burst_t, burst_lane),
+                                     fps=fps.text, swing_age=now - swing_t)
+            else:
+                draw_scene(frame, game, now, shown_message, now < flash_until, wrist,
+                           hit_y, (now - burst_t, burst_at), fps.text)
             cv2.imshow(WINDOW, frame)
 
             spare = 1 / TARGET_FPS - (time.perf_counter() - loop_start)
