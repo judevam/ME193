@@ -180,3 +180,47 @@ def test_render_mid_swing(view):
     g = incoming(lane=2)
     img = view.render(g, at(g, 0.9), wrist=Wrist(0, 0.83, 0.6), wrist_lane=2, swing_age=0.1)
     assert img.shape == (H, W, 3)
+
+
+# ── Hard mode: no helpers ────────────────────────────────────────────────────
+
+class SpyView(TableView):
+    """Records which helper drawings happen."""
+
+    def __init__(self, w, h):
+        super().__init__(w, h)
+        self.drawn = []
+
+    def _draw_lane(self, img, lane, in_lane):
+        self.drawn.append("lane")
+
+    def _draw_target(self, img, game, now):
+        self.drawn.append("target")
+
+    def _draw_paddle(self, img, x, highlight, swing_age=None):
+        self.drawn.append("paddle glow" if highlight else "paddle")
+
+
+def test_only_hard_turns_the_helpers_off():
+    assert config.LEVEL_AIDS == {1: True, 2: True, 3: False}
+
+
+@pytest.mark.parametrize("aids, expected", [
+    (True, ["lane", "target", "paddle glow"]),
+    (False, ["paddle"]),                      # hard: just the paddle, no strip, rings or glow
+])
+def test_helpers_follow_the_aids_flag(aids, expected):
+    v = SpyView(W, H)
+    g = incoming(lane=2)
+    v.render(g, ARRIVE - 0.1, wrist=Wrist(0, 0.83, 0.6), wrist_lane=2, aids=aids)
+    assert v.drawn == expected
+
+
+def test_levels_are_faster_than_before_and_hard_is_still_hittable():
+    travel = config.LEVEL_TRAVEL_S
+    assert travel[1] < 1.6 and travel[2] < 1.2 and travel[3] < 0.9
+    # on hard, the hit window still opens after whiffs start counting, and a whiff leaves
+    # time (the swing detector's cooldown) to swing again before the window closes
+    window_opens = travel[3] - config.HIT_EARLY_S
+    assert window_opens > config.WHIFF_FROM_Z * travel[3]
+    assert config.HIT_EARLY_S + config.HIT_LATE_S > config.SWING_COOLDOWN_S

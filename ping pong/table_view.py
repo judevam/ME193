@@ -343,7 +343,7 @@ class TableView:
             p1 = (int(cx + radius * 1.2 * math.cos(a)), int(cy + radius * 1.2 * math.sin(a)))
             cv2.line(img, p0, p1, WHITE, thick, cv2.LINE_AA)
 
-    def _draw_inset(self, img, cam_frame, wrist, lane=None, in_lane=False):
+    def _draw_inset(self, img, cam_frame, wrist, lane=None, in_lane=False, aids=True):
         """The webcam, small, top-right: so you can still see yourself and where your wrist is."""
         iw, ih, m = self.w // 4, self.h // 4, 12
         x0, y0 = self.w - iw - m, m
@@ -362,7 +362,7 @@ class TableView:
         if wrist is not None:
             pt = (int(wrist.x * iw), int(wrist.y * ih))
             cv2.circle(small, pt, 7, BLACK, -1, cv2.LINE_AA)
-            cv2.circle(small, pt, 5, GREEN if in_lane else (255, 255, 0), -1, cv2.LINE_AA)
+            cv2.circle(small, pt, 5, GREEN if in_lane and aids else (255, 255, 0), -1, cv2.LINE_AA)
         img[y0:y0 + ih, x0:x0 + iw] = small
         cv2.rectangle(img, (x0 - 2, y0 - 2), (x0 + iw + 1, y0 + ih + 1), WHITE, 3, cv2.LINE_AA)
         _text(img, "YOU", (x0 + 8, y0 + 22), 0.6, WHITE, 1)
@@ -372,6 +372,8 @@ class TableView:
         _text(img, "STREAK", (28, 42), 0.6, (220, 220, 220), 1)
         _text(img, str(game.streak), (28, 98), 2.0, YELLOW, 4)
         _text(img, f"Best {game.best}   Lv {game.level}", (28, 122), 0.55, WHITE, 1)
+        if game.speed > 1.005:
+            _text(img, f"Speed {game.speed * 100:.0f}%", (224, 122), 0.6, ORANGE, 2)
         if game.last_offset is not None:
             _text(img, f"last swing {game.last_offset * 1000:+.0f} ms", (18, 158), 0.5, WHITE, 1)
         if message:
@@ -382,15 +384,17 @@ class TableView:
 
     # The frame
     def render(self, game, now, *, wrist=None, wrist_lane=None, cam_frame=None, message=None,
-               swing_flash=False, burst=None, fps=None, swing_age=None):
+               swing_flash=False, burst=None, fps=None, swing_age=None, aids=True):
         """Draw one frame. wrist: pose_tracker.Wrist (mirrored screen coords) or None;
         wrist_lane: the lane the wrist counts as being in (with the edge tolerance), or None;
-        burst: (seconds since the hit, lane) or None; swing_age: seconds since the last swing."""
+        burst: (seconds since the hit, lane) or None; swing_age: seconds since the last swing;
+        aids: draw the helpers (target + timing ring, lane strip, in-lane glow) - off on hard."""
         img = self.static.copy()
         in_lane = wrist_lane is not None and wrist_lane == game.lane
         incoming = game.state == INCOMING
+        helped = incoming and aids
 
-        if incoming:
+        if helped:
             self._draw_lane(img, game.lane, in_lane)
         pos = ball_world(game, now)
         if pos is not None and self.cam.depth(pos) < 0.3:
@@ -399,16 +403,16 @@ class TableView:
         if pos is not None and behind_net:
             self._draw_ball(img, pos)
         self._draw_net(img)
-        if incoming:
+        if helped:
             self._draw_target(img, game, now)
         if wrist is not None:
-            self._draw_paddle(img, paddle_x(wrist.x), incoming and in_lane, swing_age)
+            self._draw_paddle(img, paddle_x(wrist.x), helped and in_lane, swing_age)
         if pos is not None and not behind_net:
             self._draw_ball(img, pos)
         if burst is not None:
             self._draw_burst(img, burst[1], burst[0])
 
-        self._draw_inset(img, cam_frame, wrist, game.lane if incoming else None, in_lane)
+        self._draw_inset(img, cam_frame, wrist, game.lane if helped else None, in_lane, aids)
         self._draw_hud(img, game, message, fps)
         if swing_flash:
             cv2.rectangle(img, (0, 0), (self.w - 1, self.h - 1), YELLOW, 10)

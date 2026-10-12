@@ -75,6 +75,32 @@ overlay view is `--view classic`. Renders in ~8 ms/frame. Start screen unchanged
 Paddle animation (2026-10-12, 140 tests): paddle rolls up to 28 deg at the outer lanes (handle angles back
 toward the player) and turns slightly edge-on; every detected swing plays a 0.28 s lunge forward + sweep
 toward the middle (forehand on the right, backhand on the left) with a motion trail. `paddle_pose()`.
+Audio (2026-10-12, 155 tests): `audio.py` (pygame-ce mixer) plays sounds/<event>.wav/.ogg/.mp3 for hit,
+miss, whiff, serve, start, milestone (every 5 in a row) and loops sounds/music.* (louder on the start
+screen, quieter in play). Missing files are skipped. `record_sfx.py <name>` records the user's own effects
+from the laptop mic (sounddevice), trims silence, fades, normalises to -1 dB, plays back, saves on
+"keep"; `--plot` shows waveform + spectrogram. `--no-audio` turns it off.
+Recording tweaks (159 tests): records from the headset mic by name (config.RECORD_MIC = "AudioTechnica",
+falls back to the default). Gentler trim: measures room noise from the quietest 10 ms slices and only
+cuts what's near it; keeps 50 ms before / 300 ms after (--tail), 40 ms fade-out; --no-trim keeps all.
+Announcer: on the start screen, sounds/easy|medium|hard play when the tag moves into that column
+(HoverAnnouncer: no repeats while hovering or on detection flicker; repeats after the tag is gone 0.6 s;
+own mixer channel, so a new call cuts off the last). Record with record_sfx.py easy/medium/hard.
+Miss calls: after a miss the announcer says too_late / too_early / wrong_spot / no_hand (by miss
+reason), falling back to "missed"; 0.35 s after the miss sound (MISS_CALL_DELAY_S). Any sound can have
+extra takes (name2.wav ... name9.wav, record_sfx.py --take N), picked at random.
+Music per level: sounds/music1|2|3 (easy/medium/hard), optional sounds/music on the start screen and as the
+fallback for a missing level song; new song fades in over 0.6 s; r goes back to the start-screen song.
+No beat matching (rally BPM if wanted later: 120 / travel time; 92 / 120 / 160 at the current speeds).
+Songs (freetouse.com, credited in sounds/CREDITS.md): easy = Lukrembo - Cloud, medium = Luke Bergs -
+Sunlight, hard = Aylex - Off Road.
+Tag hold raised to 1.5 s (TAG_HOLD_S) so the announcer finishes before the game starts; TAG_GRACE_S 0.25 s
+lets detection drop the tag briefly without restarting the ring.
+Higher skill ceiling: all levels faster (LEVEL_TRAVEL_S 1.6/1.2/0.9 -> 1.3/1.0/0.75 s), and hard has no
+visual helpers (config.LEVEL_AIDS: no target/timing ring, no lane strip, no in-lane glow).
+Hard also speeds up: each hit in a row x0.97 travel time (LEVEL_SPEEDUP), floor 0.55 s (MIN_TRAVEL_S,
+reached after ~10 hits); a miss resets it. HUD shows "Speed 118%". Songs are git-ignored
+(ping pong/.gitignore: sounds/music*).
 Forehand **and** backhand both count (detector uses total gyro size, no direction).
 
 ## How one hit works

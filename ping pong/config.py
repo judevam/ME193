@@ -21,8 +21,16 @@ SWING_COOLDOWN_S = 0.4        # ignore the follow-through bounce right after a s
 # ── Game ─────────────────────────────────────────────────────────────────────
 # Seconds for the ball to travel between the wall and you, per level (Phase 6 picks the level
 # with an AprilTag). A full rally is wall -> you -> wall, so twice this.
-LEVEL_TRAVEL_S = {1: 1.6, 2: 1.2, 3: 0.9}
+LEVEL_TRAVEL_S = {1: 1.3, 2: 1.0, 3: 0.75}    # was 1.6 / 1.2 / 0.9 before 2026-10-12
 DEFAULT_LEVEL = 1
+# Visual helpers per level: the target + closing timing ring, the lane highlight, and the green
+# "you're in the right lane" glow on the paddle / webcam inset. Hard turns them off: you read the
+# lane and the timing from the ball's flight and bounce alone.
+LEVEL_AIDS = {1: True, 2: True, 3: False}
+# Speed-up: each hit in a row multiplies the travel time by this (0.97 = 3% faster per hit), down to
+# MIN_TRAVEL_S. A miss resets it. 1.0 = steady speed.
+LEVEL_SPEEDUP = {1: 1.0, 2: 1.0, 3: 0.97}
+MIN_TRAVEL_S = 0.55
 
 # Hit window around the moment the ball reaches you. Wider on the early side: the swing detector
 # fires at the start of the forward stroke (when it passes 3 g), before the paddle would actually
@@ -51,7 +59,8 @@ MISS_PAUSE_S = 1.2    # time to show "MISS" before the next serve
 # One tag starts the game; where it's held picks the level, using the same three columns as the
 # ball lanes (LANE_EDGES): left = easy, middle = medium, right = hard.
 START_TAG_ID = 0                  # family 36h11, same as aprilTags/ (aprilTags/apriltag_0.png)
-TAG_HOLD_S = 0.5                  # hold it in one column this long to start
+TAG_HOLD_S = 1.5                  # hold it in one column this long to start (the ring fills up)
+TAG_GRACE_S = 0.25                # the tag can drop out of detection this long without restarting
 
 # ── Paddle feedback (Phase 7) ────────────────────────────────────────────────
 # A hit buzzes the paddle and flashes its light; a miss gives a longer, weaker buzz. The buzz is
@@ -69,6 +78,24 @@ HAPTIC = {                     # event -> (buzz ms, motor speed %, light color);
 }
 LIGHT_FLASH_S = 0.4            # how long the light stays on the event color
 LIGHT_IDLE_COLOR = "blue"      # the light's resting color while playing
+
+# ── Audio ────────────────────────────────────────────────────────────────────
+# Sound files live in sounds/, named after the event (any of .wav .ogg .mp3): hit, miss, whiff,
+# serve, start, milestone, and music for the background loop. Record effects with record_sfx.py.
+# A missing file is just skipped.
+SFX_VOLUME = 0.9              # 0..1
+MUSIC_VOLUME_MENU = 0.6       # music on the start screen
+MUSIC_VOLUME_GAME = 0.25      # quieter during play so the effects come through
+STREAK_MILESTONE = 5          # "milestone" sound every this many hits in a row
+# Start screen: the announcer says "easy" / "medium" / "hard" when the tag moves into that column.
+# It only repeats the same level after the tag has been gone this long (detection flickers).
+ANNOUNCE_GONE_S = 0.6
+# After a miss the announcer calls it (too_late / too_early / wrong_spot / no_hand, or the general
+# "missed"), this long after the miss sound so they don't talk over each other.
+MISS_CALL_DELAY_S = 0.35
+# record_sfx.py records from the first microphone whose name contains this (the headset mic);
+# if it isn't plugged in, it falls back to the Windows default. List mics: python -m sounddevice
+RECORD_MIC = "AudioTechnica"
 
 # ── Live score ───────────────────────────────────────────────────────────────
 MQTT_BROKER = "test.mosquitto.org"

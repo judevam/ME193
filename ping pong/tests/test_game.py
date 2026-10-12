@@ -245,3 +245,54 @@ def test_missed_ball_keeps_flying_past():
     z1 = g.ball_z(ARRIVE + 0.5)
     z2 = g.ball_z(ARRIVE + 0.8)
     assert 1.0 < z1 < z2
+
+
+# ── Hard mode speeds up ──────────────────────────────────────────────────────
+
+def rally(level, hits):
+    """Play `hits` perfect hits in a row on `level`; return the game and each flight's travel time."""
+    g = Game(level=level, rng=random.Random(0))
+    g.start(0.0)
+    g.update(SERVE_AT)
+    travels, t = [g.travel], SERVE_AT + g.travel           # first ball arrives at t
+    for _ in range(hits):
+        assert g.swing(t, hand_lane=g.lane) == ["hit"]
+        t_back = t + g.travel                                # return trip at the new speed
+        g.update(t_back)                                     # bounced off the wall
+        travels.append(g.travel)
+        t = t_back + g.travel
+    return g, travels
+
+
+def test_hard_gets_faster_with_each_hit():
+    _, travels = rally(3, 5)
+    assert travels[0] == config.LEVEL_TRAVEL_S[3]
+    assert all(b < a for a, b in zip(travels, travels[1:]))
+    assert travels[1] == pytest.approx(config.LEVEL_TRAVEL_S[3] * config.LEVEL_SPEEDUP[3])
+
+
+def test_hard_speed_has_a_floor():
+    _, travels = rally(3, 40)
+    assert min(travels) == pytest.approx(config.MIN_TRAVEL_S)
+
+
+def test_a_miss_resets_the_speed():
+    g, travels = rally(3, 6)
+    assert g.travel < config.LEVEL_TRAVEL_S[3]
+    arrive = g._t0 + g.travel
+    g.update(arrive + config.HIT_LATE_S + 0.01)              # let it go by
+    g.update(arrive + config.HIT_LATE_S + 0.01 + config.MISS_PAUSE_S)   # re-serve
+    g.update(arrive + 5.0)                                   # ball leaves the wall
+    assert g.state == INCOMING and g.travel == config.LEVEL_TRAVEL_S[3]
+    assert g.speed == 1.0
+
+
+@pytest.mark.parametrize("level", [1, 2])
+def test_easy_and_medium_keep_a_steady_speed(level):
+    _, travels = rally(level, 8)
+    assert set(travels) == {config.LEVEL_TRAVEL_S[level]}
+
+
+def test_speed_readout():
+    g, _ = rally(3, 4)
+    assert g.speed == pytest.approx(1 / config.LEVEL_SPEEDUP[3] ** 4)

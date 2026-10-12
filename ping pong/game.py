@@ -15,6 +15,9 @@ hand not seen) is a WHIFF: it's reported so the player gets feedback, but the ba
 they can swing again. Whiffs are only reported in the second half of the ball's flight
 (WHIFF_FROM_Z); swings while the ball is still far away are ignored.
 
+On levels with a speed-up (config.LEVEL_SPEEDUP, hard), each hit in a row makes the ball a little
+faster, down to config.MIN_TRAVEL_S; a miss resets it. The speed is set as each flight starts.
+
 Call `swing(t, hand_lane)` for each detected swing (with its own timestamp), then `update(now)`
 once per frame. Both return a list of events: "serve", "hit", "miss", and the whiffs
 "whiff_early", "whiff_lane", "whiff_no_hand". After a "miss", `miss_reason` says why: "late"
@@ -32,7 +35,9 @@ ANY_LANE = "any"   # hand_lane when pose is off: skip the lane check
 
 class Game:
     def __init__(self, level=config.DEFAULT_LEVEL, rng=None):
-        self.travel = config.LEVEL_TRAVEL_S[level]
+        self.base_travel = config.LEVEL_TRAVEL_S[level]
+        self.speedup = config.LEVEL_SPEEDUP.get(level, 1.0)
+        self.travel = self.base_travel   # seconds wall <-> you for the current flight
         self.level = level
         self.early = config.HIT_EARLY_S
         self.late = config.HIT_LATE_S
@@ -116,9 +121,22 @@ class Game:
 
     # ── Internals ────────────────────────────────────────────────────────────
 
+    def travel_for(self, streak):
+        """Flight time at this streak: the level's base time, sped up per hit, never below the floor."""
+        if self.speedup >= 1.0:
+            return self.base_travel
+        return max(config.MIN_TRAVEL_S, self.base_travel * self.speedup ** streak)
+
+    @property
+    def speed(self):
+        """How fast the current flight is compared with the level's base speed (1.0 = normal)."""
+        return self.base_travel / self.travel
+
     def _enter(self, state, t):
         self.state = state
         self._t0 = t
+        if state in (INCOMING, RETURNING):   # a new flight: its speed comes from the streak
+            self.travel = self.travel_for(self.streak)
         if state == INCOMING:
             self.lane = self._rng.choice(LANES)
             self._whiff = None

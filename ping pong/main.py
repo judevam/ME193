@@ -11,6 +11,10 @@
     python main.py --level 2         # skip the start screen and play level 2
     python main.py --no-haptics      # no buzz / light on the paddle
     python main.py --view classic    # the old view: ball drawn over the full webcam image
+    python main.py --no-audio        # no music or sound effects
+
+Music and sound effects come from sounds/ (audio.py); record your own effects with record_sfx.py.
+Each level has its own song (sounds/music1, music2, music3); sounds/music plays on the start screen.
 
 The default view is a Wii Sports Resort-style 3D table (table_view.py) with your webcam in a small
 inset; the red paddle follows your wrist.
@@ -42,6 +46,7 @@ from level_tags import LEVEL_NAMES, LevelPicker
 from pose_tracker import hand_lane
 from scoreboard import Scoreboard
 from swing import SwingDetector
+from audio import LEVEL_ANNOUNCE, HoverAnnouncer, NoAudio, milestone_reached, miss_call, open_audio
 from table_view import TableView
 
 WINDOW = "Ping Pong (q to quit)"
@@ -147,16 +152,17 @@ def draw_burst(img, center, age):
 
 
 def draw_scene(img, game, now, message=None, swing_flash=False, wrist=None, hit_y=config.HIT_Y_DEFAULT,
-               burst=None, fps=None):
+               burst=None, fps=None, aids=True):
     """Draw table, lane, timing ring, ball, wrist and HUD onto img (in place) and return it.
     wrist: a pose_tracker.Wrist in mirrored-screen coordinates, or None.
     hit_y: screen height (0..1) where the ball reaches you (see HitHeight).
-    burst: (seconds since the hit, (x, y) where it happened), or None."""
+    burst: (seconds since the hit, (x, y) where it happened), or None.
+    aids: draw the helpers (lane column, hit + timing rings, lane colours) - off on hard."""
     h, w = img.shape[:2]
     draw_table(img)
     in_lane = wrist is not None and hand_lane(wrist.x, game.lane) == game.lane
 
-    if game.state == INCOMING:
+    if game.state == INCOMING and aids:
         draw_lane_column(img, game.lane, in_lane)
         # hit circle: where the ball will arrive; lights up green while you can hit it
         (zx, zy), zr = ball_screen(1.0, w, h, game.lane, hit_y)
@@ -181,7 +187,7 @@ def draw_scene(img, game, now, message=None, swing_flash=False, wrist=None, hit_
 
     if wrist is not None:
         color = (255, 255, 0)
-        if game.state == INCOMING:
+        if game.state == INCOMING and aids:
             color = GREEN if in_lane else RED
         center = (int(wrist.x * w), int(wrist.y * h))
         cv2.circle(img, center, 14, BLACK, -1, cv2.LINE_AA)
@@ -290,6 +296,7 @@ def main():
     parser.add_argument("--pose-model", choices=("lite", "full", "heavy"), default=config.POSE_MODEL)
     parser.add_argument("--no-haptics", action="store_true", help="no paddle buzz / light")
     parser.add_argument("--view", choices=("table", "classic"), default="table")
+    parser.add_argument("--no-audio", action="store_true", help="no music or sound effects")
     parser.add_argument("--level", type=int, choices=config.LEVEL_TRAVEL_S, help="skip the start screen")
     args = parser.parse_args()
 
@@ -327,13 +334,19 @@ def main():
         from level_tags import TagReader
         camera = CameraWorker(cap, (WIDTH, HEIGHT), pose=None if mouse else pose, tag_reader=TagReader())
 
+    audio = NoAudio() if args.no_audio else open_audio()
+    audio.play_music(None, config.MUSIC_VOLUME_MENU)    # start-screen song
+
     picker = LevelPicker()
+    announcer = HoverAnnouncer()
     game, best = None, 0     # game is None on the start screen
 
     def new_game(level, now):
         g = Game(level=level)
         g.best = best
         g.start(now)
+        audio.play("start")
+        audio.play_music(level, config.MUSIC_VOLUME_GAME)  # this level's song
         print(f"Start: level {level} ({LEVEL_NAMES[level]})")
         return g
 
@@ -360,12 +373,15 @@ def main():
 
             key = cv2.waitKey(1) & 0xFF
             now = time.perf_counter()
+            audio.update()   # delayed announcer lines
             fps.tick(now, cam_frames)
             if key == ord("q"):
                 break
             if key == ord("r"):
                 game = None
                 picker.reset()
+                announcer.reset()
+                audio.play_music(None, config.MUSIC_VOLUME_MENU)
 
             # swings (always read, so old ones don't pile up while on the start screen)
             swing_times = []
@@ -376,6 +392,9 @@ def main():
 
             if game is None:
                 level = picker.update([sum(x for x, _ in c) / 4 / WIDTH for c in tags], now)
+                hovered = announcer.update(picker.level, now)
+                if hovered:
+                    audio.announce(LEVEL_ANNOUNCE[hovered])     # "easy" / "medium" / "hard"
                 if key in (ord("1"), ord("2"), ord("3")):
                     level = key - ord("0")
                 if level:
@@ -388,6 +407,7 @@ def main():
                     continue
 
             events = []
+            streak_before = game.streak
             for t in swing_times:
                 lane = ANY_LANE
                 if pose is not None:
@@ -407,6 +427,13 @@ def main():
                     message = MESSAGES[e]
                 message_until = now + MESSAGE_S
                 feedback.send("whiff" if e.startswith("whiff") else e)   # buzz + light on the paddle
+                audio.play("whiff" if e.startswith("whiff") else e)
+                if e == "hit" and milestone_reached(streak_before, game.streak):
+                    audio.play("milestone")
+                if e == "miss":   # the announcer calls it, just after the miss sound
+                    call = miss_call(game.miss_reason, audio.sounds)
+                    if call:
+                        audio.announce(call, delay=config.MISS_CALL_DELAY_S)
                 if e == "hit":
                     burst_t, burst_lane = now, game.lane
                     burst_at = ball_screen(1.0, WIDTH, HEIGHT, game.lane, hit_height.y)[0]
@@ -427,10 +454,11 @@ def main():
                                      wrist_lane=hand_lane(wrist.x, game.lane) if wrist else None,
                                      cam_frame=None if camera is None else frame, message=shown_message,
                                      swing_flash=now < flash_until, burst=(now - burst_t, burst_lane),
-                                     fps=fps.text, swing_age=now - swing_t)
+                                     fps=fps.text, swing_age=now - swing_t,
+                                     aids=config.LEVEL_AIDS[game.level])
             else:
                 draw_scene(frame, game, now, shown_message, now < flash_until, wrist,
-                           hit_y, (now - burst_t, burst_at), fps.text)
+                           hit_y, (now - burst_t, burst_at), fps.text, config.LEVEL_AIDS[game.level])
             cv2.imshow(WINDOW, frame)
 
             spare = 1 / TARGET_FPS - (time.perf_counter() - loop_start)
@@ -438,6 +466,7 @@ def main():
                 time.sleep(spare)
     finally:
         feedback.stop()
+        audio.close()
         if camera is not None:
             camera.stop()
         if cap is not None:
