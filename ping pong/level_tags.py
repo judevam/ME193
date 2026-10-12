@@ -6,7 +6,9 @@
 The (mirrored) screen is split into the same three columns as the ball lanes:
 left = easy, middle = medium, right = hard. Hold the tag (config.START_TAG_ID, family 36h11 like
 aprilTags/) still in one column for config.TAG_HOLD_S to start; moving it to another column
-restarts the hold, so a tag passing through doesn't start the wrong level.
+restarts the hold, so a tag passing through doesn't start the wrong level. Detection flickers, so
+the tag can vanish for up to config.TAG_GRACE_S and come back in the same column without losing
+its progress.
 """
 
 import argparse
@@ -40,15 +42,23 @@ def mirrored_center_x(tag, frame_width):
 class LevelPicker:
     """Pure logic: which column is the start tag held in, and has it been held long enough?"""
 
-    def __init__(self, hold=config.TAG_HOLD_S):
+    def __init__(self, hold=config.TAG_HOLD_S, grace=config.TAG_GRACE_S):
         self.hold = hold
+        self.grace = grace
         self.level = None        # level of the column the tag is in right now
         self._since = None       # when the tag arrived in that column
+        self._seen = None        # when the tag was last actually detected
 
     def update(self, tag_xs, t):
         """Feed the mirrored-screen x of each start tag seen in one frame (usually 0 or 1 of them).
         Returns a level once the tag has been held in one column long enough."""
-        level = level_at(tag_xs[0]) if tag_xs else None
+        if tag_xs:
+            level = level_at(tag_xs[0])
+            self._seen = t
+        elif self.level is not None and self._seen is not None and t - self._seen < self.grace:
+            level = self.level                 # a brief dropout: carry on as if it's still there
+        else:
+            level = None
         if level != self.level:
             self.level, self._since = level, t
         if level is not None and t - self._since >= self.hold:
@@ -63,7 +73,7 @@ class LevelPicker:
         return min(1.0, (t - self._since) / self.hold)
 
     def reset(self):
-        self.level, self._since = None, None
+        self.level, self._since, self._seen = None, None, None
 
 
 class TagReader:

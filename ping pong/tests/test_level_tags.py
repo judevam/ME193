@@ -9,7 +9,7 @@ LEFT_X, MID_X, RIGHT_X = 0.15, 0.5, 0.85   # mirrored-screen x in each column
 
 
 def picker():
-    return LevelPicker(hold=0.5)
+    return LevelPicker(hold=0.5, grace=0.25)
 
 
 @pytest.mark.parametrize("x, level", [(LEFT_X, 1), (MID_X, 2), (RIGHT_X, 3)])
@@ -64,6 +64,35 @@ def test_tag_out_of_view_restarts_the_hold():
     p.update([], 0.3)
     assert p.update([MID_X], 0.6) is None
     assert p.update([MID_X], 1.1) == 2
+
+
+def test_brief_dropout_keeps_the_hold_going():
+    # detection loses the tag for a couple of frames mid-hold
+    p = picker()
+    assert p.update([MID_X], 0.0) is None
+    assert p.update([MID_X], 0.1) is None       # last seen at 0.1
+    assert p.update([], 0.2) is None
+    assert p.update([], 0.3) is None            # 0.2 s gone: still within the 0.25 s grace
+    assert p.update([MID_X], 0.35) is None
+    assert p.update([MID_X], 0.5) == 2          # hold counted from 0.0, not restarted
+
+
+def test_long_hold_with_flicker_still_starts():
+    p = LevelPicker(hold=1.5, grace=0.25)
+    seen = [True, True, True, False, True, True, False, False, True] * 6    # ~1/3 of frames lost
+    picked = [p.update([RIGHT_X] if s else [], i / 30) for i, s in enumerate(seen)]
+    assert [v for v in picked if v] == [3]
+
+
+def test_dropout_longer_than_grace_restarts():
+    p = picker()
+    p.update([MID_X], 0.0)
+    p.update([], 0.1)
+    p.update([], 0.4)                            # 0.4 s gone: past the grace
+    assert p.level is None
+    assert p.update([MID_X], 0.45) is None
+    assert p.update([MID_X], 0.9) is None       # hold restarted at 0.45
+    assert p.update([MID_X], 0.96) == 2
 
 
 def test_progress_fills_up():

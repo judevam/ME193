@@ -14,6 +14,7 @@ labels stay correct, then x is flipped.
 """
 
 import argparse
+import threading
 import time
 import urllib.request
 from collections import deque
@@ -45,6 +46,15 @@ def lane_of(x):
     return LEFT if x < lo else RIGHT if x > hi else CENTER
 
 
+def hand_lane(x, ball_lane, tolerance=config.LANE_TOLERANCE):
+    """The hand's lane, giving the benefit of the doubt near an edge: a hand within `tolerance`
+    of the ball's lane counts as in it. Stops a near-the-line swing from being "wrong spot"."""
+    edges = (0.0, *config.LANE_EDGES, 1.0)
+    if edges[ball_lane] - tolerance <= x <= edges[ball_lane + 1] + tolerance:
+        return ball_lane
+    return lane_of(x)
+
+
 class Smoother:
     """Exponential smoothing of the wrist position. Starts fresh after the wrist is lost."""
 
@@ -70,16 +80,21 @@ class WristHistory:
     def __init__(self, max_age=config.WRIST_MAX_AGE_S):
         self.max_age = max_age
         self._samples = deque(maxlen=120)
+        self._lock = threading.Lock()   # the camera thread adds while the game loop reads
 
     def add(self, wrist):
-        self._samples.append(wrist)
+        with self._lock:
+            self._samples.append(wrist)
 
     def latest(self):
-        return self._samples[-1] if self._samples else None
+        with self._lock:
+            return self._samples[-1] if self._samples else None
 
     def at(self, t):
         """The last position seen at or before time t, if it's recent enough; else None."""
-        for w in reversed(self._samples):
+        with self._lock:
+            samples = list(self._samples)
+        for w in reversed(samples):
             if w.t <= t:
                 return w if t - w.t <= self.max_age else None
         return None

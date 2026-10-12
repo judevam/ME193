@@ -3,4 +3,7 @@ paho-mqtt       # scoreboard.py - publishes the streak (mqttlib.py)
 numpy           # swing.py, main.py - sample math and frame arrays
 opencv-contrib-python  # main.py, level_tags.py - webcam window + cv2.aruco AprilTags
 mediapipe       # pose_tracker.py - wrist position
+sounddevice     # record_sfx.py - records your sound effects from the mic
+scipy           # record_sfx.py - saves them as WAV
+pygame-ce       # audio.py - plays music + sound effects together
 pytest          # tests/ - unit tests for the pure-logic modules
