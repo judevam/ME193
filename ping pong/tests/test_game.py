@@ -296,3 +296,56 @@ def test_easy_and_medium_keep_a_steady_speed(level):
 def test_speed_readout():
     g, _ = rally(3, 4)
     assert g.speed == pytest.approx(1 / config.LEVEL_SPEEDUP[3] ** 4)
+
+
+# ── Incoming sidespin ────────────────────────────────────────────────────────
+
+def serve_many(level, n, seed=0):
+    """Start n balls on `level`; return (from_lane, lane) for each."""
+    g = Game(level=level, rng=random.Random(seed))
+    out = []
+    for _ in range(n):
+        g.start(0.0)
+        g.update(SERVE_AT)
+        out.append((g.from_lane, g.lane))
+    return out
+
+
+def test_easy_never_spins():
+    assert all(a == b for a, b in serve_many(1, 200))
+
+
+@pytest.mark.parametrize("level", [2, 3])
+def test_spin_rate_matches_the_level(level):
+    balls = serve_many(level, 2000)
+    rate = sum(a != b for a, b in balls) / len(balls)
+    assert rate == pytest.approx(config.LEVEL_SPIN_CHANCE[level], abs=0.03)
+
+
+def test_spin_only_ever_curves_one_lane():
+    assert all(abs(a - b) <= 1 for a, b in serve_many(3, 2000))
+
+
+def test_aim_starts_on_the_fake_lane_and_ends_on_the_real_one():
+    g = started()
+    g.lane, g.from_lane = 2, 1
+    assert g.spin == +1
+    assert g.aim_lane(0.0) == 1
+    assert g.aim_lane(1.0) == 2
+    assert 1 < g.aim_lane(0.5) < 1.5          # most of the curve comes late
+    assert g.aim_lane(1.3) == 2               # a missed ball keeps its line
+
+
+def test_hit_is_judged_on_the_lane_the_ball_arrives_in():
+    g = started()
+    g.lane, g.from_lane = 0, 1                 # looks like centre, curves left
+    assert g.spin == -1
+    assert g.swing(ARRIVE, hand_lane=1) == ["whiff_lane"]   # stayed where it looked headed
+    assert g.swing(ARRIVE + 0.15, hand_lane=0) == ["hit"]   # followed the curve
+
+
+def test_no_spin_aims_straight():
+    g = started()
+    g.from_lane = g.lane
+    assert g.spin == 0
+    assert g.aim_lane(0.3) == g.aim_lane(0.9) == g.lane

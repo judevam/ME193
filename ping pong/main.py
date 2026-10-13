@@ -79,9 +79,12 @@ SWING_FLASH_S = 0.15
 # ── Drawing (no camera or BLE, so it can be tested) ──────────────────────────
 
 def lane_x(lane):
-    """Screen x (0..1) of a lane's centre where the ball reaches you: the middle of that third."""
+    """Screen x (0..1) of a lane's centre where the ball reaches you: the middle of that third.
+    A fractional lane (a curving ball) lands in between."""
     edges = (0.0, *config.LANE_EDGES, 1.0)
-    return (edges[lane] + edges[lane + 1]) / 2
+    centres = [(edges[i] + edges[i + 1]) / 2 for i in range(3)]
+    i = min(int(lane), 1)
+    return centres[i] + (centres[i + 1] - centres[i]) * (lane - i)
 
 
 class HitHeight:
@@ -176,7 +179,8 @@ def draw_scene(img, game, now, message=None, swing_flash=False, wrist=None, hit_
 
     if game.state in (SERVE, INCOMING, RETURNING, MISSED):
         z = game.ball_z(now)
-        (bx, by), br = ball_screen(z, w, h, game.lane, hit_y)
+        lane = game.aim_lane(z) if game.state in (INCOMING, MISSED) else game.lane   # spin curves it
+        (bx, by), br = ball_screen(z, w, h, lane, hit_y)
         shadow_y = by + int(br * 1.3)
         cv2.ellipse(img, (bx, shadow_y), (br, max(2, br // 4)), 0, 0, 360, (30, 30, 30), -1, cv2.LINE_AA)
         cv2.circle(img, (bx, by), br, ORANGE, -1, cv2.LINE_AA)

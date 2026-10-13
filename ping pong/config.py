@@ -30,7 +30,12 @@ LEVEL_AIDS = {1: True, 2: True, 3: False}
 # Speed-up: each hit in a row multiplies the travel time by this (0.97 = 3% faster per hit), down to
 # MIN_TRAVEL_S. A miss resets it. 1.0 = steady speed.
 LEVEL_SPEEDUP = {1: 1.0, 2: 1.0, 3: 0.97}
-MIN_TRAVEL_S = 0.55
+MIN_TRAVEL_S = 0.60          # was 0.55: a touch too hard
+# Sidespin: this fraction of balls leave the wall heading for one lane and curve into the lane next
+# to it late in their flight; you have to be where the ball ARRIVES. A spinning ball shows a
+# rotating seam (the dot moves the way it will curve). The curve grows as (progress ** SPIN_CURVE).
+LEVEL_SPIN_CHANCE = {1: 0.0, 2: 0.20, 3: 0.30}    # hard was 0.35: a touch too hard
+SPIN_CURVE = 2.0
 
 # Hit window around the moment the ball reaches you. Wider on the early side: the swing detector
 # fires at the start of the forward stroke (when it passes 3 g), before the paddle would actually

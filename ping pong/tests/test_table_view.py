@@ -20,7 +20,7 @@ def incoming(lane=1):
     g = Game(level=1)
     g.start(0.0)
     g.update(SERVE_AT)
-    g.lane = lane
+    g.lane = g.from_lane = lane       # no spin unless a test asks for it
     return g
 
 
@@ -224,3 +224,21 @@ def test_levels_are_faster_than_before_and_hard_is_still_hittable():
     window_opens = travel[3] - config.HIT_EARLY_S
     assert window_opens > config.WHIFF_FROM_Z * travel[3]
     assert config.HIT_EARLY_S + config.HIT_LATE_S > config.SWING_COOLDOWN_S
+
+
+# ── Sidespin in 3D ───────────────────────────────────────────────────────────
+
+def test_spinning_ball_heads_for_the_fake_lane_then_curves_in():
+    g = incoming(lane=2)
+    g.from_lane = 1                                       # looks centre, curves right
+    x_early, _, _ = ball_world(g, at(g, 0.3))
+    x_end, _, _ = ball_world(g, ARRIVE)
+    assert abs(x_early) < 0.3 * LANE_X[2] * 0.5          # still near the centre line early on
+    assert x_end == pytest.approx(LANE_X[2])              # arrives in its real lane
+
+
+def test_render_spinning_ball(view):
+    g = incoming(lane=0)
+    g.from_lane = 1
+    for t in (at(g, 0.4), at(g, 0.8), ARRIVE):
+        assert view.render(g, t, wrist=Wrist(0, 0.17, 0.6), wrist_lane=0, aids=False).shape == (H, W, 3)

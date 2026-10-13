@@ -22,11 +22,15 @@ and the game has **music, my own recorded sound effects and an announcer**.
 A swing that's too early or in the wrong lane is a **whiff**: you get feedback, but the ball keeps
 coming and you can swing again. Only a ball that gets past you ends the streak.
 
-| Level | Ball wall → you | Helpers (target ring, timing ring, lane highlight) |
-|---|---|---|
-| Easy | 1.3 s | on |
-| Medium | 1.0 s | on |
-| Hard | 0.75 s, **3% faster every hit** in a row (top speed 0.55 s; resets on a miss) | **off**: read the ball |
+Some balls carry **sidespin**: they leave the wall heading for one lane and **curve into the next
+lane** late in the flight, and you have to be where the ball *arrives*. A spinning ball shows a
+turning seam, and the dot on it moves the way the ball will curve.
+
+| Level | Ball wall → you | Sidespin | Helpers (target ring, timing ring, lane highlight) |
+|---|---|---|---|
+| Easy | 1.3 s | never | on |
+| Medium | 1.0 s | 20% of balls | on |
+| Hard | 0.75 s, **3% faster every hit** in a row (top speed 0.60 s; resets on a miss) | 30% of balls | **off**: read the ball |
 
 ## How the assignment requirements are met
 
@@ -53,7 +57,7 @@ coming and you can swing again. Only a ball that gets past you ends the streak.
   floor), fades and normalises it, and can plot its spectrogram. The announcer calls the level on
   the start screen and the reason for each miss ("Too slow!", "Wrong side!"). Several takes of each
   sound are picked at random. Each level has its own song.
-- **Tested**: 193 pytest tests cover the swing detector (against the real recordings), game rules,
+- **Tested**: 203 pytest tests cover the swing detector (against the real recordings), game rules,
   lanes, tags, MQTT publishing, the 3D maths and the audio clean-up, with keyboard, mouse and fake
   hardware standing in for the paddle and camera.
 
@@ -132,7 +136,7 @@ python publish.py listen ME193/Rogers/Jude
 | `table_view.py` | the 3D table renderer |
 | `audio.py`, `record_sfx.py` | playback; recording your own sounds |
 | `lelib.py`, `mqttlib.py` | course libraries (LEGO BLE, MQTT) |
-| `tests/` | `pytest tests` (193 tests) |
+| `tests/` | `pytest tests` (203 tests) |
 | `PLAN.md` | the phase-by-phase development log, with the reasoning and numbers behind each decision |
 
 ## Credits

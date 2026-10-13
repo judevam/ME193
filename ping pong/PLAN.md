@@ -101,6 +101,10 @@ visual helpers (config.LEVEL_AIDS: no target/timing ring, no lane strip, no in-l
 Hard also speeds up: each hit in a row x0.97 travel time (LEVEL_SPEEDUP), floor 0.55 s (MIN_TRAVEL_S,
 reached after ~10 hits); a miss resets it. HUD shows "Speed 118%". Songs are git-ignored
 (ping pong/.gitignore: sounds/music*).
+Incoming sidespin: LEVEL_SPIN_CHANCE easy 0 / medium 20% / hard 35%; a spinning ball leaves aimed at a
+neighbouring lane (from_lane) and curves into its real lane (curve ~ progress^2); hits are judged on the
+arrival lane. Shown by a rotating seam whose dot moves the way it will curve. Game.aim_lane() drives both
+views. Play-test: hard a touch too hard -> hard spin 35% -> 30%, MIN_TRAVEL_S 0.55 -> 0.60 s.
 Forehand **and** backhand both count (detector uses total gyro size, no direction).
 
 ## How one hit works

@@ -96,3 +96,9 @@ def test_draw_scene_with_timing_ring_burst_and_fps():
     t = 1.0 + g.travel - 0.3                  # ring is showing
     out = draw_scene(blank_background(), g, t, burst=(0.1, (480, 500)), fps="60 fps  (camera 30)")
     assert out.shape == (HEIGHT, WIDTH, 3)
+
+
+def test_classic_view_lane_x_handles_a_curving_ball():
+    from main import lane_x
+    assert lane_x(0) < lane_x(0.5) < lane_x(1) < lane_x(1.5) < lane_x(2)
+    assert lane_x(1) == pytest.approx(0.5)

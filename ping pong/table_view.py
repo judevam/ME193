@@ -38,6 +38,8 @@ PADDLE_MAX_TURN = 0.30        # how edge-on the face turns at the outer lanes (0
 SWING_ANIM_S = 0.28           # length of the swing animation
 SWING_PUSH, SWING_LIFT = 0.35, 0.05     # metres the paddle lunges forward / rises mid-swing
 SWING_SWEEP_X, SWING_SWEEP_DEG = 0.10, 40.0   # sideways sweep toward the middle, and the roll with it
+SPIN_RATE = 14.0              # rad/s the seam of a spinning ball turns at (visual only)
+SEAM = (40, 70, 200)          # darker orange stripe + dot on a spinning ball
 
 # The virtual camera: behind and above the player, looking down the table
 EYE = np.array([0.0, 1.55, -1.45])
@@ -132,7 +134,7 @@ def ball_world(game, now):
     table_top = TABLE_Y + BALL_R
     if game.state in (SERVE, INCOMING, MISSED):
         z = WALL_Z + (HIT_Z - WALL_Z) * s
-        x = lane_x * s
+        x = lane_world_x(game.aim_lane(s)) * s     # curves late if the ball has sidespin
         s_bounce = (WALL_Z - BOUNCE_IN_Z) / (WALL_Z - HIT_Z)
         if s < s_bounce:
             y = _arc(WALL_HIT_Y, table_top, ARC_DOWN, s / s_bounce)
@@ -149,6 +151,11 @@ def ball_world(game, now):
     else:
         y = _arc(table_top, WALL_HIT_Y, ARC_DOWN, (q - q_bounce) / (1 - q_bounce))
     return x, y, z
+
+
+def lane_world_x(aim):
+    """Hit-point x (metres) for a fractional lane: 0 -> LANE_X[0], 1 -> LANE_X[1], 2 -> LANE_X[2]."""
+    return LANE_X[0] + (LANE_X[2] - LANE_X[0]) * aim / 2
 
 
 def over_table(x, z):
@@ -258,7 +265,8 @@ class TableView:
             a, b = cam.pts([(x, TABLE_Y - 0.02, NET_Z), (x, top, NET_Z)])
             cv2.line(img, tuple(a), tuple(b), NET_MESH, 4, cv2.LINE_AA)
 
-    def _draw_ball(self, img, pos):
+    def _draw_ball(self, img, pos, spin=0, now=0.0):
+        """spin: -1 / +1 draws a turning seam whose dot moves the way the ball will curve."""
         x, y, z = pos
         cam = self.cam
         # shadow straight below, on the table if it's over it, else on the floor
@@ -275,6 +283,13 @@ class TableView:
         center = (int(c[0]), int(c[1]))
         cv2.circle(img, center, r + 1, (0, 70, 140), -1, cv2.LINE_AA)
         cv2.circle(img, center, r, BALL, -1, cv2.LINE_AA)
+        if spin and r >= 3:
+            phase = now * SPIN_RATE
+            cv2.ellipse(img, center, (max(1, int(r * abs(math.cos(phase)))), r), 0, 0, 360, SEAM,
+                        max(1, r // 5), cv2.LINE_AA)
+            if math.cos(phase) > 0:   # the dot on the front of the ball sweeps the way it curves
+                dot = (int(center[0] + spin * r * 0.7 * math.sin(phase)), center[1])
+                cv2.circle(img, dot, max(1, r // 3), SEAM, -1, cv2.LINE_AA)
         cv2.circle(img, (center[0] - r // 3, center[1] - r // 3), max(1, r // 3), BALL_SHINE, -1, cv2.LINE_AA)
 
     def _paddle_shape(self, x, swing_age):
@@ -400,15 +415,16 @@ class TableView:
         if pos is not None and self.cam.depth(pos) < 0.3:
             pos = None                     # a missed ball that has flown past the camera
         behind_net = pos is not None and pos[2] > NET_Z
+        spin = game.spin if incoming else 0
         if pos is not None and behind_net:
-            self._draw_ball(img, pos)
+            self._draw_ball(img, pos, spin, now)
         self._draw_net(img)
         if helped:
             self._draw_target(img, game, now)
         if wrist is not None:
             self._draw_paddle(img, paddle_x(wrist.x), helped and in_lane, swing_age)
         if pos is not None and not behind_net:
-            self._draw_ball(img, pos)
+            self._draw_ball(img, pos, spin, now)
         if burst is not None:
             self._draw_burst(img, burst[1], burst[0])
 

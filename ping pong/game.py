@@ -18,6 +18,10 @@ they can swing again. Whiffs are only reported in the second half of the ball's 
 On levels with a speed-up (config.LEVEL_SPEEDUP, hard), each hit in a row makes the ball a little
 faster, down to config.MIN_TRAVEL_S; a miss resets it. The speed is set as each flight starts.
 
+Some balls (config.LEVEL_SPIN_CHANCE) carry sidespin: they leave the wall aimed at the lane next
+to `lane` (`from_lane`) and curve into `lane` late in the flight. Hits are judged on `lane`, where
+the ball actually arrives; `aim_lane()` gives the in-between aim for drawing the curve.
+
 Call `swing(t, hand_lane)` for each detected swing (with its own timestamp), then `update(now)`
 once per frame. Both return a list of events: "serve", "hit", "miss", and the whiffs
 "whiff_early", "whiff_lane", "whiff_no_hand". After a "miss", `miss_reason` says why: "late"
@@ -47,7 +51,9 @@ class Game:
         self.miss_reason = None   # why the last ball got past: "late", "early", "lane", "no_hand"
         self._whiff = None        # the current ball's last whiff reason
         self.state = None
-        self.lane = 1    # lane of the current ball
+        self.lane = 1    # lane the current ball ARRIVES in (what a hit is judged against)
+        self.from_lane = 1   # lane it looks headed for when it leaves the wall (differs with spin)
+        self.spin_chance = config.LEVEL_SPIN_CHANCE.get(level, 0.0)
         self._rng = rng or random.Random()
         self._t0 = 0.0   # when the current state started
 
@@ -128,6 +134,17 @@ class Game:
         return max(config.MIN_TRAVEL_S, self.base_travel * self.speedup ** streak)
 
     @property
+    def spin(self):
+        """Which way the incoming ball curves: -1 left, +1 right, 0 no spin."""
+        return (self.lane > self.from_lane) - (self.lane < self.from_lane)
+
+    def aim_lane(self, s):
+        """The lane (fractional) the incoming ball is heading for at progress s (0 wall .. 1 you):
+        from_lane at first, curving into lane by the time it arrives."""
+        s = min(max(s, 0.0), 1.0)
+        return self.from_lane + (self.lane - self.from_lane) * s ** config.SPIN_CURVE
+
+    @property
     def speed(self):
         """How fast the current flight is compared with the level's base speed (1.0 = normal)."""
         return self.base_travel / self.travel
@@ -139,6 +156,10 @@ class Game:
             self.travel = self.travel_for(self.streak)
         if state == INCOMING:
             self.lane = self._rng.choice(LANES)
+            self.from_lane = self.lane
+            if self.spin_chance > 0 and self._rng.random() < self.spin_chance:
+                # looks headed for a neighbouring lane, curves into this one
+                self.from_lane = self._rng.choice([n for n in (self.lane - 1, self.lane + 1) if n in LANES])
             self._whiff = None
 
     def _whiffed(self, reason):
