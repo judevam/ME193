@@ -1,0 +1,7 @@
+paho-mqtt>=2.0
+legoeducation==1.2.0   # must match your devices' firmware RPC version (see README)
+bleak>=0.22
+py_trees>=2.2
+PyYAML>=6.0
+keyboard>=0.13
+pytest>=8.0
