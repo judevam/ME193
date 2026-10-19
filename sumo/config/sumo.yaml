@@ -69,8 +69,8 @@ hold_ground:
 flipper:
   cooldown_s: 2.0
   sweep_s: 0.8            # time for one fire stroke (out and back); REST re-homes after this
-  home_deg: 18            # measured: arm resting down
-  fire_deg: 290           # measured: arm fully up (88 deg counterclockwise from home)
+  home_deg: 28            # measured 2026-10-19: arm resting down
+  fire_deg: 327           # measured 2026-10-19: arm fully up (61 deg counterclockwise from home)
   fire_direction: counterclockwise   # clockwise moves our arm DOWN
   speed_pct: 100
   max_travel_deg: 150     # software limit: refuse configs that sweep further than this
