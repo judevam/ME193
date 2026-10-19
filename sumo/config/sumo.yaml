@@ -1,0 +1,95 @@
+# All tunable numbers for the sumo robot live here. Nothing in the tree or the
+# bridges hard-codes a threshold. Times are in seconds, distances in cm,
+# motor values are -1..1 unless the name says _pct.
+
+robot_id: bot1            # topic prefix is sumo/<robot_id>/
+
+mqtt:
+  host: 127.0.0.1         # laptop processes talk to the broker on this machine (IPv4).
+                          # The UNO Q uses the laptop's LAN IP, set in
+                          # ArduinoApps/sumo-ultrasonic/python/main.py
+  port: 1883
+  keepalive_s: 5          # Last Will fires ~1.5x this after a node dies
+
+logging:
+  level: INFO             # DEBUG prints the active tree path every tick
+  print_ultrasonic: true  # TEMP debugging: brain prints distance ~5x/s
+
+# Which implementation each device uses: mock | hardware.
+# The env var SUMO_FORCE_MOCK=1 (set by run_demo.py) forces every device to mock.
+devices:
+  drive: hardware
+  flipper: hardware
+  color: hardware
+  joystick: hardware
+  sound: hardware         # laptop speaker fallback (the UNO Q buzzer is separate)
+
+# Which physical LEGO device to connect to: our devices are paired to the
+# orange 7572 Connection Card, so we never connect to the opponent's hardware.
+# card_color is a color name (red, yellow, blue, teal, green, purple, white,
+# magenta, orange, azure); null = don't filter on that field.
+lego:
+  notify_ms: 50           # how often devices send sensor updates (15..1000)
+  reconnect_min_s: 1.0    # BLE reconnect backoff starts here...
+  reconnect_max_s: 10.0   # ...and doubles up to here
+  drive:    {device_name: null, card_color: orange, card_serial: 7572}
+  flipper:  {device_name: null, card_color: orange, card_serial: 7572}
+  color:    {device_name: null, card_color: orange, card_serial: 7572}
+  joystick: {device_name: null, card_color: orange, card_serial: 7572}
+
+brain:
+  tick_hz: 20
+  teleop_stale_s: 0.3     # joystick / fire events older than this are ignored
+  sensor_stale_s: 0.2     # color / ultrasonic older than this are ignored
+  require_color_for_drive: true   # no fresh color data -> no driving (can't see the edge)
+# Defeat is manual only: the d key on the keyboard client.
+
+edge:                     # the color sensor is at the BACK of the robot
+  blue_names: [blue]      # color names that count as ring tape. TODO(hardware): calibrate
+  clear_s: 0.3            # after blue: wheels may only go forward until off the tape this long
+
+joystick:                 # LEGO Controller levers, tank drive (left lever -> left wheels)
+  deadzone: 0.1
+  max_speed: 1.0
+  invert_left: false      # flip a lever that reports forward as negative
+  invert_right: false
+  swap_sides: false       # swap if the left lever reads as the right one
+  rate_hz: 20
+
+ultrasonic:
+  max_cm: 200             # readings above this are discarded
+  median_n: 3
+  blank_after_fire_s: 0.5 # flipper arm sweeps through the sensor's view
+  hold_ground_cm: 15
+  auto_fire_cm: 12
+
+hold_ground:
+  push_speed: 0.4
+
+flipper:
+  cooldown_s: 2.0
+  sweep_s: 0.8            # time for one fire stroke (out and back); REST re-homes after this
+  home_deg: 28            # measured 2026-10-19: arm resting down
+  fire_deg: 327           # measured 2026-10-19: arm fully up (61 deg counterclockwise from home)
+  fire_direction: counterclockwise   # clockwise moves our arm DOWN
+  speed_pct: 100
+  max_travel_deg: 150     # software limit: refuse configs that sweep further than this
+
+drive_bridge:
+  rate_hz: 10             # max BLE motor writes per second
+  heartbeat_s: 1.0        # resend an unchanged command this often
+  cmd_timeout_s: 0.5      # no valid command this long -> stop
+  max_speed_pct: 100
+  # Our Double Motor is mounted turned around: + spins the wheels backward and
+  # its left output drives the robot's right side. Fixed here so the brain's
+  # "forward" (used by the blue-tape rule) really is forward.
+  invert_left: true
+  invert_right: true
+  swap_sides: true
+  latency_log_s: 5.0      # how often to log sensor->motor latency stats
+
+color_bridge:
+  rate_hz: 20
+
+fake_sensors:             # keyboard simulator used in mock mode
+  rate_hz: 20
