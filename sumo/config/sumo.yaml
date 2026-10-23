@@ -45,7 +45,9 @@ brain:
 # Defeat is manual only: the d key on the keyboard client.
 
 edge:                     # the color sensor is at the BACK of the robot
-  blue_names: [blue]      # color names that count as ring tape. TODO(hardware): calibrate
+  # Color names that count as ring tape. Measured 2026-10-20: new tape reads "none"
+  # (dark, raw RGB ~40/52/67); ring floor reads "red" (~150/89/82).
+  blue_names: [blue, none]
   clear_s: 0.3            # after blue: wheels may only go forward until off the tape this long
 
 joystick:                 # LEGO Controller levers, tank drive (left lever -> left wheels)
