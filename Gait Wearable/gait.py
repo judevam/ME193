@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import socket
 import sys
 import threading
 import time
@@ -22,6 +23,16 @@ import time
 import paho.mqtt.client as mqtt
 
 import config
+
+
+def broker_address() -> str:
+    """The broker's IPv4 address. On some networks (home Wi-Fi, 2026-10-25) IPv6 is broken,
+    and Python tries IPv6 first: each attempt stalls 6 s, so connecting by name times out."""
+    try:
+        return socket.getaddrinfo(config.BROKER_HOST, config.BROKER_PORT,
+                                  socket.AF_INET, socket.SOCK_STREAM)[0][4][0]
+    except OSError:
+        return config.BROKER_HOST
 
 
 def connect(on_message=None, imu: bool = False) -> mqtt.Client:
@@ -39,7 +50,7 @@ def connect(on_message=None, imu: bool = False) -> mqtt.Client:
     client.on_connect = on_connect
     if on_message:
         client.on_message = on_message
-    client.connect(config.BROKER_HOST, config.BROKER_PORT, keepalive=10)
+    client.connect(broker_address(), config.BROKER_PORT, keepalive=10)
     client.loop_start()
     if not connected.wait(10):
         sys.exit(f"couldn't connect to {config.BROKER_HOST}")
@@ -58,8 +69,10 @@ def format_status(topic: str, payload: bytes) -> str:
     except ValueError:
         return payload.decode(errors="replace")
     # Replies to a command arrive straight away, without the once-a-second live numbers.
-    live = (f"{s['rate_hz']:>3} Hz  peak x {s.get('peak_x_g', '?')} g  |a| {s.get('mag_g', '?')} g"
+    live = (f"{s['rate_hz']:>3} Hz  peak {s.get('peak_axis_g', '?')} g  |a| {s.get('mag_g', '?')} g"
             if "rate_hz" in s else "")
+    if s.get("gait"):  # the board's own classification (when it has models)
+        live += f"  -> {s['gait'].upper()} (m1 {s.get('model1')}, m2 {s.get('model2')})"
     if s.get("mode") == "record":
         lost = f"  LOST {s['lost']}" if s.get("lost") else ""
         return f"REC {s['label']:8s} {s['seconds']:6.1f} s  {live}{lost}"

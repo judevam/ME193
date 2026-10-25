@@ -13,8 +13,8 @@ const uint16_t RATE_HZ = 100;
 const int MAX_PER_CALL = 40;  // samples per read_samples() call (0.4 s at 100 Hz)
 
 MPU6050 imu(Wire);
-bool imu_ok = false;
-String imu_info;
+volatile bool imu_ok = false;  // only true once setup is done: Bridge calls check it before using I2C
+String imu_info = "starting the IMU (stuck here = I2C problem: check the 4 wires)";
 
 // 8 x 13 LED matrix. The animations live in python/matrix_art.py; Python sends frames here.
 const int MATRIX_PIXELS = 8 * 13;
@@ -30,22 +30,24 @@ void setup() {
   matrix.setGrayscaleBits(3);  // brightness 0..7
   matrix.clear();
 
-  // Set the IMU up before the Bridge starts, so only Bridge calls touch I2C after this.
-  imu_ok = imu.begin(RATE_HZ, MPU6050::ACCEL_8G, MPU6050::GYRO_1000DPS);
-  if (imu_ok) {
-    imu.calibrateGyro(200);  // 2 s: keep the sensor still at power-on
-    imu.fifoBegin();
-    imu_info = "ok whoami=0x" + String(imu.whoAmI(), HEX) + " rate=" + String(RATE_HZ);
-  } else {
-    imu_info = "no MPU-6050 at 0x68: check wiring";
-  }
-
+  // Bridge first, so Python can always ask what's going on, even if the IMU hangs below.
+  // The I2C functions check imu_ok, which only becomes true once the IMU is set up.
   Bridge.begin();
   Bridge.provide("imu_status", imu_status);
   Bridge.provide("read_samples", read_samples);
   Bridge.provide("imu_debug", imu_debug);
   Bridge.provide("draw", draw);
   Monitor.begin();
+
+  bool ok = imu.begin(RATE_HZ, MPU6050::ACCEL_8G, MPU6050::GYRO_1000DPS);
+  if (ok) {
+    imu.calibrateGyro(200);  // 2 s: keep the sensor still at power-on
+    imu.fifoBegin();
+    imu_info = "ok whoami=0x" + String(imu.whoAmI(), HEX) + " rate=" + String(RATE_HZ);
+  } else {
+    imu_info = "no MPU-6050 at 0x68: check wiring";
+  }
+  imu_ok = ok;
   Monitor.println("gait wearable sketch: " + imu_info);
 }
 
@@ -87,7 +89,7 @@ void loop() {
 
 String imu_status() { return imu_info; }
 
-String imu_debug() { return imu.dump(); }
+String imu_debug() { return imu_ok ? imu.dump() : imu_info; }
 
 // One frame: 104 digits '0'..'7' (brightness), row by row, 13 per row.
 void draw(String frame) {

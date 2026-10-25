@@ -22,7 +22,7 @@ def _impulses(t: np.ndarray, freq: float, height: float, width_s: float = 0.04) 
 
 
 def generate(label: str, seconds: float, rng: np.random.Generator, rate_hz: float = config.RATE_HZ) -> pd.DataFrame:
-    """X points along the thigh toward the hip, so standing reads ax ~ +1 g."""
+    """The thigh axis (config.PEAK_AXIS) points toward the hip, so standing reads ~ +1 g on it."""
     t = np.arange(int(seconds * rate_hz)) / rate_hz
     n = len(t)
     jitter = rng.uniform(0.85, 1.15)  # each session a bit different
@@ -45,7 +45,7 @@ def generate(label: str, seconds: float, rng: np.random.Generator, rate_hz: floa
     else:
         raise ValueError(label)
     noise = lambda s: rng.normal(0, s, n)
-    return pd.DataFrame({
+    df = pd.DataFrame({
         "t": np.round(t, 2),
         "ax": np.sin(theta) + extra + noise(0.03),
         "ay": noise(0.05 if label == "standing" else 0.15),
@@ -54,6 +54,12 @@ def generate(label: str, seconds: float, rng: np.random.Generator, rate_hz: floa
         "gy": gyro_y + noise(2),
         "gz": noise(2 if label == "standing" else 10),
     })
+    # Built with the thigh along X; move it to the axis the real IMU uses (config.PEAK_AXIS)
+    thigh = config.PEAK_AXIS[1]
+    if thigh != "x":
+        df[["ax", f"a{thigh}"]] = df[[f"a{thigh}", "ax"]].to_numpy()
+        df[["gx", f"g{thigh}"]] = df[[f"g{thigh}", "gx"]].to_numpy()
+    return df
 
 
 def write_sessions(out_dir: Path, per_class: int = 5, seconds: float = 40, seed: int = 0) -> list[Path]:

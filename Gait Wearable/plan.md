@@ -31,7 +31,7 @@ quick to build once we have good data.
 | Model 2 | Hand-made window features, then the best of **decision tree, kNN, nearest centroid, k-means** ✅ | Methods from class, no neural net |
 | Training | Train on the laptop (scikit-learn) from CSVs copied off the board, then deploy the models back | Plotting and model comparison are easier on the laptop; the board only predicts |
 | Output | Board publishes the gait and key numbers on MQTT about once a second; `dashboard.py` on the laptop shows them. The UNO Q LED matrix shows the letter too | See "What the board sends" below |
-| Broker | **test.mosquitto.org** by default; the laptop's Mosquitto as an option in the config | Board and laptop both connect *out* to it, so it works even when Tufts Wi-Fi puts them on subnets that can't reach each other (the sumo robot's problem) |
+| Broker | **broker.hivemq.com** (switched from test.mosquitto.org on 2026-10-25 when it went down); the laptop's Mosquitto as an option in the config | Board and laptop both connect *out* to it, so it works even when Tufts Wi-Fi puts them on subnets that can't reach each other (the sumo robot's problem) |
 | Power | USB-C power bank in a pocket or on the strap | The UNO Q has no battery input |
 
 ### Why the thigh (and not the ankle)
@@ -146,7 +146,10 @@ a snapshot is copied into `Gait Wearable/unoq/`, like the sumo robot.
 | `Gait Wearable/model_peak.py` | Model 1: single-axis peak plus thresholds ✅ |
 | `Gait Wearable/train.py` | Leave-one-session-out scores and confusion matrices for both models; saves them to `models/` ✅ |
 | `Gait Wearable/synthetic.py` | Fake recordings for tests and for trying `train.py` before real data ✅ |
-| `Gait Wearable/dashboard.py` | Laptop display of the live gait (Phase 5; `gait.py watch` covers recording for now) |
+| `Gait Wearable/dashboard.py` | Live display: graphs, gait, model 1 bands, status, record buttons ✅ |
+| `Gait Wearable/features_core.py` | Per-window feature math, shared by the laptop and the board ✅ |
+| `Gait Wearable/gait_models.py` | Runs the exported models with numpy only (laptop and board) ✅ |
+| `Gait Wearable/push_models.py` | Copies the trained models to the board and redeploys ✅ |
 | `Gait Wearable/data/` | Real recordings, one CSV per session, named `<activity>_<date-time>.csv` |
 | `Gait Wearable/tests/` | pytest: windowing, features, model 1, end-to-end training on synthetic data ✅ (17 pass) |
 
@@ -244,9 +247,16 @@ Lessons from bring-up:
 - [ ] Run on real data
 
 ### Phase 5: Live on the wearable
-- [ ] Run both models on the UNO Q in live mode; publish to MQTT and show on the LED matrix
-- [ ] Smooth the output: majority vote over the last 3 predictions so it doesn't flicker
-- [ ] `dashboard.py` on the laptop; check it with a fake publisher first, then the real wearable
+- [x] Run both models on the UNO Q; publish to MQTT and show on the LED matrix (tested 2026-10-23
+      with the synthetic models: numpy installs, classifies every second, IMU stays at 100 Hz)
+  - No scikit-learn on the board: `train.py` exports both models to `models/gait_models.json`
+    and `gait_models.py` runs them with numpy only. Tests check it matches scikit-learn exactly.
+  - `features_core.py` holds the feature math shared by the laptop and the board.
+  - `python push_models.py` copies the JSON and both files to the board app and deploys;
+    `--remove` takes them off again.
+  - LED matrix priority: activity being recorded > `gait.py show` > the board's own gait > idle.
+- [x] Smooth the output: majority vote over the last 3 predictions so it doesn't flicker
+- [x] `dashboard.py` on the laptop: runs the same models; shows the board's answer as "It says"
 - [ ] Live test: walk → run → stand → bike, and check the switch-over delay (about 2 s expected)
 
 ### Phase 6: Write-up and demo
@@ -255,7 +265,7 @@ Lessons from bring-up:
 
 ## Open questions
 
-- Is `ME193/Jude/gait` on test.mosquitto.org OK, or does the class expect a specific topic?
+- Is `ME193/Jude/gait` on broker.hivemq.com OK, or does the class expect a specific topic?
 - Does "peak acceleration in one direction" have to be the raw peak, or is peak-to-peak on
   one axis allowed? Peak-to-peak removes gravity, which helps if the strap rotates.
 - What are the deliverables and the due date?

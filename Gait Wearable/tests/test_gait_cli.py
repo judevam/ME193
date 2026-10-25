@@ -6,7 +6,7 @@ from gait import format_status
 
 def test_format_record_status():
     msg = {"mode": "record", "label": "walking", "seconds": 12.3, "samples": 1230, "lost": 0,
-           "rate_hz": 100, "peak_x_g": 1.7, "mag_g": 1.05}
+           "rate_hz": 100, "peak_axis_g": 1.7, "mag_g": 1.05}
     line = format_status("ME193/Jude/gait", json.dumps(msg).encode())
     assert line.startswith("REC walking")
     assert "LOST" not in line
@@ -19,3 +19,9 @@ def test_format_shows_lost_samples():
 
 def test_format_online_status():
     assert format_status("ME193/Jude/gait/status", b"offline") == "wearable is offline"
+
+
+def test_format_shows_the_boards_gait():
+    msg = {"mode": "idle", "rate_hz": 100, "gait": "walking", "model1": "walking", "model2": "running"}
+    line = format_status("ME193/Jude/gait", json.dumps(msg).encode())
+    assert "WALKING" in line and "m2 running" in line

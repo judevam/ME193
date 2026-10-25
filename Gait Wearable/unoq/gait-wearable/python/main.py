@@ -13,13 +13,15 @@ Topics (TOPIC = ME193/Jude/gait):
   TOPIC/cmd     laptop -> board   {"cmd": "start", "label": "running"} | {"cmd": "stop"}
                                   | {"cmd": "show", "gait": "walking", "seconds": 5}  (LED matrix)
   TOPIC         board -> laptop   {"mode": "idle"|"record", "label", "seconds", "samples",
-                                   "lost", "file", "peak_x_g", "mag_g", "rate_hz", "t"}
+                                   "lost", "file", "peak_axis_g", "mag_g", "rate_hz", "t",
+                                   with models also "gait", "model1", "model2", "confidence", "peak_g"}
   TOPIC/status  board -> laptop   "online" / "offline" (retained)
   TOPIC/imu     board -> laptop   {"seq": n, "rate_hz": 100, "s": [[ax, ay, az, gx, gy, gz], ...]}
                                   every sample, in batches every STREAM_S (for dashboard.py)
 """
 import json
 import math
+import os
 import threading
 import time
 from pathlib import Path
@@ -29,16 +31,29 @@ from arduino.app_utils import *
 
 import matrix_art
 
-BROKER_HOST = "test.mosquitto.org"  # public broker: board and laptop both connect out to it
+# Trained models, copied here by "Gait Wearable/push_models.py" in ME193 (with
+# gait_models.py and features_core.py). Without them the board just records and streams.
+MODELS_PATH = Path(__file__).resolve().parent / "gait_models.json"
+try:
+    from gait_models import GaitModels, StreamClassifier
+    classifier = StreamClassifier(GaitModels.load(MODELS_PATH)) if MODELS_PATH.exists() else None
+except Exception as e:  # missing numpy or a broken file: keep recording anyway
+    print(f"couldn't load the gait models: {e!r}")
+    classifier = None
+print("gait models:", "loaded" if classifier else "none (record and stream only)")
+
+BROKER_HOST = "broker.hivemq.com"   # public broker (was test.mosquitto.org, down 2026-10-25); must match config.py
 BROKER_PORT = 1883
 TOPIC = "ME193/Jude/gait"
 RATE_HZ = 100                       # must match RATE_HZ in the sketch
 LABELS = {"standing", "walking", "running", "biking"}
 MAX_RECORD_S = 600                  # stop a forgotten recording after 10 minutes
+SYNC_S = 1.0                        # write recordings to disk at least this often
 POLL_S = 0.05
 STREAM = True                       # send every sample on TOPIC/imu for dashboard.py
 STREAM_S = 0.2                      # ... in batches this often (~20 samples each)
 SHOW_S = 5                          # a "show" command lasts this long unless repeated
+PEAK_AXIS_INDEX = 0                 # thigh axis for the status message: 0=X 1=Y 2=Z
 DATA_DIR = Path(__file__).resolve().parent / "data"
 
 
@@ -71,6 +86,7 @@ class Recorder:
         self.samples = 0
         self.lost = 0
         self.started = 0.0
+        self.synced = 0.0
 
     def start(self, label):
         with self.lock:
@@ -82,7 +98,7 @@ class Recorder:
             self.file.write(f"# label={label} start={stamp} rate_hz={RATE_HZ}\n")
             self.file.write("t,ax,ay,az,gx,gy,gz\n")
             self.label, self.samples, self.lost = label, 0, 0
-            self.started = time.monotonic()
+            self.started = self.synced = time.monotonic()
             print(f"recording {label} -> {self.path.name}")
 
     def stop(self):
@@ -100,7 +116,13 @@ class Recorder:
                 t = self.samples / RATE_HZ
                 self.file.write(f"{t:.2f}," + ",".join(f"{v:g}" for v in s) + "\n")
                 self.samples += 1
-            if time.monotonic() - self.started > MAX_RECORD_S:
+            now = time.monotonic()
+            if now >= self.synced + SYNC_S:
+                # Push it all the way to the SD card, so a power cut loses at most SYNC_S
+                self.file.flush()
+                os.fsync(self.file.fileno())
+                self.synced = now
+            if now - self.started > MAX_RECORD_S:
                 print("recording hit MAX_RECORD_S, stopping")
                 self._close()
 
@@ -124,13 +146,14 @@ recorder = Recorder()
 
 
 class Matrix:
-    """Which animation the LED matrix plays: the activity being recorded, else the last
-    gait the laptop sent with "show" (for SHOW_S seconds), else idle."""
+    """Which animation the LED matrix plays: the activity being recorded, else a gait the
+    laptop sent with "show" (for its seconds), else the board's own classification, else idle."""
 
     def __init__(self):
         self.lock = threading.Lock()
         self.gait = None
         self.until = 0.0
+        self.own = None          # the board's own (smoothed) answer, if it has models
         self.frame_i = 0
         self.next_frame = 0.0
         self.playing = "unset"
@@ -148,7 +171,12 @@ class Matrix:
         rec = recorder.status()
         recording = rec["mode"] == "record"
         with self.lock:
-            gait = rec["label"] if recording else (self.gait if now < self.until else None)
+            if recording:
+                gait = rec["label"]
+            elif now < self.until:
+                gait = self.gait
+            else:
+                gait = self.own
         if gait != self.playing:
             self.playing, self.frame_i = gait, 0
         frames, period = matrix_art.animation(gait)
@@ -198,8 +226,16 @@ def publish_status(client, extra):
 
 
 def sampler_loop(client):
-    print("IMU:", Bridge.call("imu_status"))
-    print("IMU registers:", Bridge.call("imu_debug"))
+    # The sketch may still be starting up: keep asking instead of letting this thread die
+    # (which would leave the app running but reading nothing).
+    while True:
+        try:
+            print("IMU:", Bridge.call("imu_status"))
+            print("IMU registers:", Bridge.call("imu_debug"))
+            break
+        except Exception as e:
+            print(f"sketch not answering yet ({e!r}), retrying in 2 s")
+            time.sleep(2)
     window = []  # samples from the last second, for the status message
     stream = []  # samples not yet sent on TOPIC/imu
     seq = 0      # index of stream[0] since start, so the laptop can spot gaps
@@ -217,6 +253,15 @@ def sampler_loop(client):
         window.extend(samples)
         count += len(samples)
         now = time.monotonic()
+        if classifier:
+            if overflow:
+                classifier.reset()  # samples were lost: don't classify across the gap
+            try:
+                for _, result in classifier.add(samples):
+                    with matrix.lock:
+                        matrix.own = result.get("gait")
+            except Exception as e:
+                print(f"classify error: {e!r}")
         try:
             matrix.step(now)
         except Exception as e:
@@ -232,15 +277,25 @@ def sampler_loop(client):
         if now >= report_at:
             extra = {"rate_hz": count}
             if window:
-                # peak along X (the thigh axis) and the mean size of the acceleration
-                extra["peak_x_g"] = round(max(s[0] for s in window), 2)
+                # peak along the thigh axis and the mean size of the acceleration
+                extra["peak_axis_g"] = round(max(s[PEAK_AXIS_INDEX] for s in window), 2)
                 extra["mag_g"] = round(sum(math.sqrt(s[0]**2 + s[1]**2 + s[2]**2)
                                            for s in window) / len(window), 2)
                 ax, ay, az, gx, gy, gz = window[-1]
+                r = classifier.current if classifier else {}
+                if r.get("gait"):
+                    extra.update(gait=r["gait"], model1=r["model1"], model2=r["model2"],
+                                 confidence=None if r["confidence"] is None else round(r["confidence"], 2),
+                                 peak_g=round(r["peak"], 2))
                 print(f"{count:3d} Hz  accel g [{ax:6.2f} {ay:6.2f} {az:6.2f}] |a|={extra['mag_g']:.2f}  "
-                      f"gyro dps [{gx:7.1f} {gy:7.1f} {gz:7.1f}]  {recorder.status()['mode']}")
+                      f"gyro dps [{gx:7.1f} {gy:7.1f} {gz:7.1f}]  {recorder.status()['mode']}"
+                      + (f"  gait: {r['gait']} (m1 {r['model1']}, m2 {r['model2']})" if r.get("gait") else ""))
             else:
-                print("no IMU samples")
+                try:
+                    extra["imu"] = Bridge.call("imu_status")  # why: e.g. still starting / no MPU
+                except Exception as e:
+                    extra["imu"] = f"sketch not answering ({e!r})"
+                print(f"no IMU samples: {extra['imu']}")
             publish_status(client, extra)
             window, count = [], 0
             report_at = max(report_at + 1, now)

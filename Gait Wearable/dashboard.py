@@ -8,7 +8,8 @@ Shows the current gait (both models), live accel and gyro graphs, model 1's peak
 against its thresholds, a gait timeline, and the board's status. The buttons start and stop
 recordings on the board, like `gait.py record`.
 
-Classification runs here on the laptop, using the models train.py saved in models/.
+Classification runs here with the same code and models (models/gait_models.json) as the
+board, so the two should agree. "It says" in the status panel is the board's own answer.
 """
 from __future__ import annotations
 
@@ -21,6 +22,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.animation import FuncAnimation
+from matplotlib.colors import ListedColormap
 from matplotlib.widgets import Button, RadioButtons
 
 import config
@@ -31,6 +33,12 @@ COLORS = {"standing": "#5b8def", "walking": "#3fb950", "running": "#f0883e",
 AXIS_COLORS = ["#ff7b72", "#3fb950", "#58a6ff"]   # X, Y, Z
 GRAPH_S = 10        # seconds shown in the accel and gyro graphs
 TIMELINE_S = 120    # seconds shown in the peak and timeline graphs
+# Fixed ranges (the pilot's max was 4.9 g and 503 deg/s). Fixed axes let matplotlib redraw
+# only the lines and text each frame ("blitting") instead of the whole window, which was
+# too slow (~340 ms a frame) and made the dashboard lag.
+ACCEL_RANGE = (-2.0, 5.0)
+GYRO_RANGE = (-600.0, 600.0)
+PEAK_RANGE = (-1.5, 4.5)
 
 
 class Dashboard:
@@ -51,9 +59,10 @@ class Dashboard:
                 before = len(self.live.history) and self.live.history[-1][0]
                 self.live.add(samples, seq)
                 self.last_imu = time.time()
-                if self.live.history and self.live.history[-1][0] != before:
-                    # New answer: show it on the wearable's LED matrix. Plain publish
-                    # (no waiting): we're inside paho's callback thread.
+                if (self.live.history and self.live.history[-1][0] != before
+                        and "gait" not in self.board):
+                    # The board has no models of its own: show our answer on its LED matrix.
+                    # Plain publish (no waiting): we're inside paho's callback thread.
                     client.publish(config.TOPIC + "/cmd", json.dumps(
                         {"cmd": "show", "gait": self.live.history[-1][1], "seconds": 5}))
             elif msg.topic.endswith("/status"):
@@ -85,8 +94,19 @@ class Dashboard:
         self.txt_conf = self.ax_gait.text(0.0, 0.22, "", fontsize=13, va="center", color="#c9d1d9")
         self.txt_models = self.ax_gait.text(0.0, -0.05, "", fontsize=11, va="center", color="#8b949e")
 
-        # Gait timeline
+        # Gait timeline: one image, one pixel per window (redrawing a bar per window was slow)
         self.ax_tl = fig.add_subplot(gs[0, 1:])
+        self.tl_labels = [None] + config.LABELS
+        self.tl_slots = int(TIMELINE_S / config.HOP_S)
+        self.tl_image = self.ax_tl.imshow(
+            np.zeros((1, self.tl_slots)), aspect="auto", interpolation="nearest",
+            cmap=ListedColormap(["#000000"] + [COLORS[l] for l in config.LABELS]),
+            vmin=0, vmax=len(config.LABELS), extent=[-TIMELINE_S, 0, -0.5, 0.5])
+        self.ax_tl.set_yticks([])
+        self.ax_tl.set_title("Gait timeline (last 2 min)", loc="left", fontsize=10)
+        for label in config.LABELS:
+            self.ax_tl.barh(0, 0, color=COLORS[label], label=label)
+        self.ax_tl.legend(loc="upper left", bbox_to_anchor=(0, -0.25), ncol=4, fontsize=8, frameon=False)
 
         # Accel and gyro
         self.ax_acc = fig.add_subplot(gs[1, :2])
@@ -98,13 +118,31 @@ class Dashboard:
                           for c, l in zip(AXIS_COLORS, ["gx", "gy", "gz"])]
         self.ax_acc.set_title("Acceleration (g)", loc="left", fontsize=10)
         self.ax_gyr.set_title("Rotation (deg/s)", loc="left", fontsize=10)
-        self.ax_gyr.set_xlabel("seconds")
+        self.ax_gyr.set_xlabel("seconds ago")
+        self.ax_acc.set_xlim(-GRAPH_S, 0)
+        self.ax_acc.set_ylim(*ACCEL_RANGE)
+        self.ax_gyr.set_ylim(*GYRO_RANGE)
         for ax in (self.ax_acc, self.ax_gyr):
             ax.legend(loc="upper left", fontsize=8, ncol=4, framealpha=0.3)
             ax.grid(alpha=0.15)
 
-        # Model 1: peak per window vs thresholds
+        # Model 1: peak per window vs thresholds (bands drawn once, the line just updates)
         self.ax_peak = fig.add_subplot(gs[3, :2])
+        self.peak_line = self.ax_peak.plot([], [], "o-", ms=3, lw=1, color="w")[0]
+        self.ax_peak.set_title(f"Model 1 input: peak {config.PEAK_AXIS} per {config.WINDOW_S:g} s window (g), "
+                               "bands = its thresholds", loc="left", fontsize=10)
+        self.ax_peak.grid(alpha=0.15)
+        self.ax_peak.set_xlim(-TIMELINE_S, 0)
+        self.ax_peak.set_ylim(*PEAK_RANGE)
+        self.ax_tl.set_xlim(-TIMELINE_S, 0)
+        m1 = self.live.models
+        if m1.order is not None:
+            edges = [-5.0] + list(m1.thresholds) + [10.0]
+            for (lo, up), label in zip(zip(edges, edges[1:]), m1.order):
+                self.ax_peak.axhspan(lo, up, color=COLORS.get(label, COLORS[None]), alpha=0.12)
+                # x in axes coordinates (stays at the left edge), y in g
+                self.ax_peak.text(0.005, (max(lo, -0.5) + min(up, 4.0)) / 2, label, fontsize=8, va="center",
+                                  color=COLORS.get(label), transform=self.ax_peak.get_yaxis_transform())
 
         # Status and controls
         self.ax_status = fig.add_subplot(gs[1:3, 2])
@@ -124,6 +162,12 @@ class Dashboard:
         self.btn_start.on_clicked(lambda _: self._send({"cmd": "start", "label": self.radio.value_selected}))
         self.btn_stop.on_clicked(lambda _: self._send({"cmd": "stop"}))
 
+        # Everything that changes each frame; only these get redrawn (see ACCEL_RANGE)
+        self.animated = [*self.acc_lines, *self.gyr_lines, self.peak_line, self.tl_image,
+                         self.txt_gait, self.txt_conf, self.txt_models, self.txt_status]
+        for artist in self.animated:
+            artist.set_animated(True)
+
     def _send(self, cmd: dict) -> None:
         if self.client is None:
             print(f"(fake mode) would send {cmd}")
@@ -132,7 +176,8 @@ class Dashboard:
         threading.Thread(target=send, args=(self.client, cmd), daemon=True).start()
 
     # ---- drawing (UI thread) ----
-    def update(self, _frame=None) -> None:
+    def update(self, _frame=None) -> list:
+        """Refresh the changing parts; returns them for blitting."""
         with self.lock:
             live = self.live
             t, data = live.recent(GRAPH_S)
@@ -140,18 +185,15 @@ class Dashboard:
             peaks, history = list(live.peaks), list(live.history)
             online, board, last_imu, lost = self.online, dict(self.board), self.last_imu, live.lost
 
-        # graphs
+        # graphs, with time as "seconds ago"
         if len(data):
+            ago = t - now
             amag = np.linalg.norm(data[:, :3], axis=1)
             for i, line in enumerate(self.acc_lines[:3]):
-                line.set_data(t, data[:, i])
-            self.acc_lines[3].set_data(t, amag)
+                line.set_data(ago, data[:, i])
+            self.acc_lines[3].set_data(ago, amag)
             for i, line in enumerate(self.gyr_lines):
-                line.set_data(t, data[:, i + 3])
-            self.ax_acc.set_xlim(now - GRAPH_S, now)
-            self.ax_acc.set_ylim(min(-1.2, data[:, :3].min() - 0.2), max(1.2, amag.max() + 0.2))
-            g = np.abs(data[:, 3:]).max()
-            self.ax_gyr.set_ylim(-max(50, g * 1.1), max(50, g * 1.1))
+                line.set_data(ago, data[:, i + 3])
 
         # gait readout
         gait = current.get("gait")
@@ -173,40 +215,21 @@ class Dashboard:
         self._draw_timeline(history, now)
         self._draw_peaks(peaks, now)
         self._draw_status(online, board, last_imu, lost, current)
+        return self.animated
 
     def _draw_timeline(self, history, now) -> None:
-        ax = self.ax_tl
-        ax.clear()
+        codes = np.zeros(self.tl_slots)
+        start = now - TIMELINE_S
         for t, gait in history:
-            ax.barh(0, config.HOP_S, left=t - config.HOP_S, height=1, color=COLORS.get(gait), linewidth=0)
-        ax.set_xlim(now - TIMELINE_S, now)
-        ax.set_ylim(-0.5, 0.5)
-        ax.set_yticks([])
-        ax.set_title("Gait timeline (last 2 min)", loc="left", fontsize=10)
-        for label in config.LABELS:
-            ax.barh(0, 0, color=COLORS[label], label=label)
-        ax.legend(loc="upper left", bbox_to_anchor=(0, -0.25), ncol=4, fontsize=8, frameon=False)
+            slot = int((t - start) / config.HOP_S) - 1
+            if 0 <= slot < self.tl_slots and gait in self.tl_labels:
+                codes[slot] = self.tl_labels.index(gait)
+        self.tl_image.set_data(codes[None, :])
 
     def _draw_peaks(self, peaks, now) -> None:
-        ax = self.ax_peak
-        ax.clear()
-        m1 = self.live.model1
-        hi = max([p for _, p in peaks] + [3.0]) + 0.3
-        if m1 is not None:
-            # shade each class's band and label it
-            edges = [-1.0] + list(m1.thresholds) + [hi]
-            for (lo, up), label in zip(zip(edges, edges[1:]), m1.order):
-                ax.axhspan(lo, up, color=COLORS.get(label, COLORS[None]), alpha=0.12)
-                ax.text(now - TIMELINE_S + 1, (lo + min(up, hi)) / 2, label, fontsize=8,
-                        va="center", color=COLORS.get(label), alpha=0.9)
         if peaks:
             ts, ps = zip(*peaks)
-            ax.plot(ts, ps, "o-", ms=3, lw=1, color="w")
-        ax.set_xlim(now - TIMELINE_S, now)
-        ax.set_ylim(min(0, min([p for _, p in peaks], default=0)) - 0.2, hi)
-        ax.set_title(f"Model 1 input: peak {config.PEAK_AXIS} per {config.WINDOW_S:g} s window (g), "
-                     "bands = its thresholds", loc="left", fontsize=10)
-        ax.grid(alpha=0.15)
+            self.peak_line.set_data(np.asarray(ts) - now, np.clip(ps, *PEAK_RANGE))
 
     def _draw_status(self, online, board, last_imu, lost, current) -> None:
         age = time.time() - last_imu if last_imu else None
@@ -219,6 +242,10 @@ class Dashboard:
         lines = [f"Wearable   {state}"]
         if board:
             lines.append(f"Rate       {board.get('rate_hz', '?')} Hz")
+            if board.get("gait"):
+                lines.append(f"It says    {board['gait']}")  # the board's own classification
+            elif "rate_hz" in board:
+                lines.append("It says    (no models on the board)")
             if board.get("mode") == "record":
                 lines += ["", f"RECORDING  {board.get('label')}",
                           f"           {board.get('seconds', 0):.0f} s, {board.get('samples', 0)} samples",
@@ -229,7 +256,7 @@ class Dashboard:
                 lines += ["", "Not recording"]
         lines += ["", f"Lost here  {lost} samples"]
         if current.get("peak") is not None:
-            lines.append(f"Peak x     {current['peak']:.2f} g")
+            lines.append(f"Peak {config.PEAK_AXIS[1]}     {current['peak']:.2f} g")
         self.txt_status.set_text("\n".join(lines))
         self.txt_status.set_color("#f85149" if board.get("mode") == "record" else "#c9d1d9")
 
@@ -264,7 +291,7 @@ def main() -> None:
         from gait import connect
         dash = Dashboard(live)
         dash.client = connect(dash.on_message, imu=True)
-    dash._anim = FuncAnimation(dash.fig, dash.update, interval=200, cache_frame_data=False)
+    dash._anim = FuncAnimation(dash.fig, dash.update, interval=200, blit=True, cache_frame_data=False)
     try:
         plt.show()
     finally:

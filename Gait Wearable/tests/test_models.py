@@ -39,7 +39,7 @@ def test_train_end_to_end_on_synthetic_data(tmp_path):
     assert scores["model 1 (peak)"] > 0.9
     assert scores["model 2 (decision tree)"] > 0.9
     assert (tmp_path / "models" / "peak_model.json").exists()
-    assert (tmp_path / "models" / "model2.joblib").exists()
+    assert (tmp_path / "models" / "gait_models.json").exists()
     assert (tmp_path / "models" / "peak_hist.png").exists()
 
 

@@ -8,6 +8,7 @@ This copy is synced by hand, so it may lag behind.
 - `gait-wearable/sketch/sketch.ino`: IMU at 100 Hz, `read_samples()` and `draw()` for Python over the Bridge
 - `gait-wearable/python/main.py`: MQTT-controlled recording to CSV on the board, live sample stream, status
 - `gait-wearable/python/matrix_art.py`: LED matrix animations for each activity
+- `gait-wearable/python/gait_models.py`, `features_core.py`: copies of the files in `Gait Wearable/` (put there by `push_models.py`) that let the board classify
 
 Deploy from the `ArduinoApps` folder:
 
