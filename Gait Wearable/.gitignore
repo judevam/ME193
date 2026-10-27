@@ -1,0 +1,7 @@
+data_synthetic/
+__pycache__/
+gaitVenv/
+data_pilot/
+data_pilot_y_axis/
+# The repo root ignores models/; this one is small (figures + exported models) and the README shows it
+!models/

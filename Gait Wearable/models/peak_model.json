@@ -1,0 +1,13 @@
+{
+  "order": [
+    "biking",
+    "standing",
+    "walking",
+    "running"
+  ],
+  "thresholds": [
+    0.8821,
+    1.1604,
+    2.3363
+  ]
+}
