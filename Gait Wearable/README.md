@@ -128,11 +128,24 @@ python push_models.py                  # send the models to the wearable
 | `train.py` | Leave-one-recording-out scores, figures, model export |
 | `gait_models.py` | Runs the exported models with numpy only (shared with the board) |
 | `pull_data.py`, `push_models.py` | Copy recordings off / models onto the board |
+| `model_figure.py` | Draws `models/model_overview.png`: how both models decide, on the real data |
 | `synthetic.py` | Fake recordings for tests |
 | `data/` | The recordings (`<activity>_<date-time>.csv`, 100 Hz) |
 | `models/` | Trained models, figures, `scores.md` |
-| `unoq/` | Snapshot of the board app: MPU-6050 driver, sketch, Python, LED matrix art |
 | `plan.md` | Design decisions and the build log |
+
+Board app (`unoq/gait-wearable/`, a snapshot of the App Lab app; see `unoq/README.md`):
+
+| File | Job |
+|---|---|
+| `sketch/sketch.ino` | Arduino sketch on the STM32: reads the IMU at 100 Hz, hands samples to Python and draws the LED matrix over the Bridge |
+| `sketch/MPU6050.h`, `MPU6050.cpp` | Our MPU-6050 driver: I2C setup, ±8 g / ±1000 °/s ranges, FIFO reads, gyro calibration |
+| `sketch/sketch.yaml` | Sketch build settings (board and libraries) |
+| `python/main.py` | Runs on the board's Linux side: records CSVs, classifies every second, publishes over MQTT, picks the LED animation |
+| `python/matrix_art.py` | The 8 × 13 LED matrix animations, one per activity |
+| `python/gait_models.py`, `features_core.py` | Copies of the laptop files, so the board runs the same models with numpy only |
+| `python/requirements.txt` | Python packages the board app installs (paho-mqtt, numpy) |
+| `app.yaml` | App Lab app description |
 
 ## Troubleshooting
 
