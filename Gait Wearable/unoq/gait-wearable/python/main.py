@@ -42,7 +42,7 @@ except Exception as e:  # missing numpy or a broken file: keep recording anyway
     classifier = None
 print("gait models:", "loaded" if classifier else "none (record and stream only)")
 
-BROKER_HOST = "broker.hivemq.com"   # public broker (was test.mosquitto.org, down 2026-10-25); must match config.py
+BROKER_HOST = "broker.emqx.io"      # public broker (was broker.hivemq.com, which kept dropping connections 2026-11-02); must match config.py
 BROKER_PORT = 1883
 TOPIC = "ME193/Jude/gait"
 RATE_HZ = 100                       # must match RATE_HZ in the sketch
@@ -309,7 +309,7 @@ client.on_message = on_message
 # Connect in the background: the IMU and recording work even while the broker is
 # unreachable, and paho keeps retrying by itself.
 client.on_disconnect = lambda c, u, flags, rc, props=None: print(f"MQTT disconnected (rc={rc}), retrying")
-client.connect_async(BROKER_HOST, BROKER_PORT, keepalive=10)
+client.connect_async(BROKER_HOST, BROKER_PORT, keepalive=30)
 client.loop_start()
 
 threading.Thread(target=sampler_loop, args=(client,), daemon=True).start()

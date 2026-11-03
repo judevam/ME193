@@ -31,7 +31,7 @@ quick to build once we have good data.
 | Model 2 | Hand-made window features, then the best of **decision tree, kNN, nearest centroid, k-means** ✅ | Methods from class, no neural net |
 | Training | Train on the laptop (scikit-learn) from CSVs copied off the board, then deploy the models back | Plotting and model comparison are easier on the laptop; the board only predicts |
 | Output | Board publishes the gait and key numbers on MQTT about once a second; `dashboard.py` on the laptop shows them. The UNO Q LED matrix shows the letter too | See "What the board sends" below |
-| Broker | **broker.hivemq.com** (switched from test.mosquitto.org on 2026-10-25 when it went down); the laptop's Mosquitto as an option in the config | Board and laptop both connect *out* to it, so it works even when Tufts Wi-Fi puts them on subnets that can't reach each other (the sumo robot's problem) |
+| Broker | **broker.emqx.io** (switched from test.mosquitto.org on 2026-10-25 when it went down, then from broker.hivemq.com on 2026-11-02 when it kept dropping connections); the laptop's Mosquitto as an option in the config | Board and laptop both connect *out* to it, so it works even when Tufts Wi-Fi puts them on subnets that can't reach each other (the sumo robot's problem) |
 | Power | USB-C power bank in a pocket or on the strap | The UNO Q has no battery input |
 
 ### Why the thigh (and not the ankle)

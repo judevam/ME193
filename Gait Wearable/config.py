@@ -6,7 +6,7 @@ DATA_DIR = HERE / "data"          # recordings copied off the board (pull_data.p
 MODEL_DIR = HERE / "models"       # trained models and plots (train.py)
 
 # MQTT: must match python/main.py on the board
-BROKER_HOST = "broker.hivemq.com"   # was test.mosquitto.org (down 2026-10-25)
+BROKER_HOST = "broker.emqx.io"      # was broker.hivemq.com (kept dropping connections, 2026-11-02) and test.mosquitto.org (down 2026-10-25)
 BROKER_PORT = 1883
 TOPIC = "ME193/Jude/gait"
 

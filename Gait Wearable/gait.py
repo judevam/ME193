@@ -29,10 +29,32 @@ def broker_address() -> str:
     """The broker's IPv4 address. On some networks (home Wi-Fi, 2026-10-25) IPv6 is broken,
     and Python tries IPv6 first: each attempt stalls 6 s, so connecting by name times out."""
     try:
-        return socket.getaddrinfo(config.BROKER_HOST, config.BROKER_PORT,
-                                  socket.AF_INET, socket.SOCK_STREAM)[0][4][0]
+        addrs = [a[4][0] for a in socket.getaddrinfo(config.BROKER_HOST, config.BROKER_PORT,
+                                                     socket.AF_INET, socket.SOCK_STREAM)]
     except OSError:
         return config.BROKER_HOST
+    # A public broker's name maps to several servers and one can be sick (2026-11-02: it
+    # accepted the TCP connection but never answered MQTT). Use the first that answers.
+    for addr in dict.fromkeys(addrs):
+        if _answers_mqtt(addr):
+            return addr
+    return addrs[0]
+
+
+def _answers_mqtt(addr: str, wait: float = 4) -> bool:
+    """True if the server at addr completes an MQTT handshake within `wait` seconds."""
+    got = threading.Event()
+    probe = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    probe.on_connect = lambda *a, **k: got.set()
+    try:
+        probe.connect(addr, config.BROKER_PORT, keepalive=10)
+        probe.loop_start()
+        return got.wait(wait)
+    except OSError:
+        return False
+    finally:
+        probe.loop_stop()
+        probe.disconnect()
 
 
 def connect(on_message=None, imu: bool = False) -> mqtt.Client:
