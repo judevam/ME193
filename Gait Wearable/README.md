@@ -74,7 +74,7 @@ MPU-6050 --I2C--> sketch (STM32, our MPU6050 driver, reads the IMU's FIFO)
                                   |- record: CSV files on the board, started/stopped over MQTT
                                   |- classify: both models every second (numpy only)
                                   |- LED matrix: animation for the current activity
-                                  '- MQTT (broker.hivemq.com, ME193/Jude/gait) --> laptop
+                                  '- MQTT (broker.emqx.io, ME193/Jude/gait) --> laptop
 laptop: dashboard.py (live view), gait.py (record), pull_data.py, train.py, push_models.py
 ```
 
