@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VAULT 193</title>
+<style>
+:root{
+  --bg:#06080a; --panel:#0c1115; --panel2:#111920; --line:#22303a; --text:#cfe3d6; --dim:#6f8579;
+  --ok:#35ff8c; --warn:#ffb020; --bad:#ff3b3b; --steel:#8b99a5; --accent:var(--bad);
+  --mono:"Share Tech Mono","Consolas","Courier New",monospace;
+}
+body.s-armed{--accent:var(--warn)} body.s-unlocked{--accent:var(--ok)}
+body.s-locked{--accent:var(--bad)} body.s-denied{--accent:var(--bad)} body.s-lockdown{--accent:var(--bad)}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--mono)}
+body{min-height:100vh;background:
+  radial-gradient(1200px 600px at 50% -10%, #12202a 0%, transparent 60%),
+  repeating-linear-gradient(0deg,#0000 0 3px,#0000000d 3px 4px), var(--bg)}
+body.s-lockdown{animation:alarmbg .7s steps(2) infinite}
+@keyframes alarmbg{0%{box-shadow:inset 0 0 160px #ff000066}100%{box-shadow:inset 0 0 40px #ff000010}}
+
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  padding:12px 20px;border-bottom:1px solid var(--line);background:#0a0f13}
+.brand{letter-spacing:.25em;font-size:18px}
+.brand b{color:var(--accent);text-shadow:0 0 12px var(--accent)}
+.brand small{display:block;letter-spacing:.15em;font-size:11px;color:var(--dim);margin-top:2px}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);padding:4px 10px;font-size:12px;color:var(--dim);border-radius:3px}
+.chip i{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--bad);margin-right:6px}
+.chip.on i{background:var(--ok);box-shadow:0 0 8px var(--ok)} .chip.on{color:var(--text)}
+#statechip{border-color:var(--accent);color:var(--accent);font-weight:bold;letter-spacing:.2em}
+
+main{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:16px;padding:16px 20px;max-width:1280px;margin:0 auto}
+@media(max-width:900px){main{grid-template-columns:1fr;padding:12px 16px}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:4px;position:relative}
+.panel h3{margin:0;padding:8px 12px;font-size:12px;letter-spacing:.25em;color:var(--dim);border-bottom:1px solid var(--line);
+  display:flex;justify-content:space-between;font-weight:normal}
+.pad{padding:12px}
+
+/* camera */
+.cam{position:relative;aspect-ratio:4/3;background:#000;overflow:hidden}
+.cam img{width:100%;height:100%;object-fit:cover;display:block;filter:contrast(1.05) saturate(.8) brightness(.95)}
+.cam .scan{position:absolute;left:0;right:0;height:80px;top:-80px;pointer-events:none;
+  background:linear-gradient(180deg,#0000,#35ff8c22,#0000);animation:scan 3.2s linear infinite}
+@keyframes scan{to{top:100%}}
+.cam .vig{position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 90px #000c}
+.rec{position:absolute;top:10px;left:12px;font-size:12px;color:#ff6a6a;letter-spacing:.15em}
+.rec:before{content:"";display:inline-block;width:9px;height:9px;border-radius:50%;background:#ff3b3b;margin-right:6px;animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:0}}
+.camid{position:absolute;bottom:8px;left:12px;font-size:11px;color:#9bd;opacity:.8}
+.roi{position:absolute;pointer-events:none;border:1px dashed #ffffff30}
+.roi b{position:absolute;width:22px;height:22px;border:3px solid var(--accent);filter:drop-shadow(0 0 5px var(--accent))}
+.roi b:nth-child(1){left:-2px;top:-2px;border-right:0;border-bottom:0}
+.roi b:nth-child(2){right:-2px;top:-2px;border-left:0;border-bottom:0}
+.roi b:nth-child(3){left:-2px;bottom:-2px;border-right:0;border-top:0}
+.roi b:nth-child(4){right:-2px;bottom:-2px;border-left:0;border-top:0}
+.nocam{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:#000d;color:var(--bad);letter-spacing:.2em;text-align:center}
+
+/* scanner readout */
+.read{display:flex;gap:16px;align-items:center}
+.glyph{width:110px;height:110px;flex:none;border:2px solid var(--accent);display:flex;align-items:center;justify-content:center;
+  font-size:76px;color:var(--accent);text-shadow:0 0 18px var(--accent);position:relative;border-radius:4px}
+.glyph small{position:absolute;bottom:3px;font-size:10px;letter-spacing:.2em;color:var(--dim);text-shadow:none}
+.bars{flex:1;min-width:0}
+.bar{display:flex;align-items:center;gap:8px;font-size:12px;margin:3px 0;color:var(--dim)}
+.bar span.k{width:46px;text-align:right}
+.bar .t{flex:1;height:8px;background:#0a0f12;border:1px solid var(--line)}
+.bar .f{height:100%;width:0;background:var(--steel);transition:width .12s}
+.bar.top .f{background:var(--accent);box-shadow:0 0 8px var(--accent)} .bar.top{color:var(--text)}
+.bar span.v{width:38px}
+
+/* vault */
+.vaultwrap{position:relative;padding:14px 12px 4px}
+.stage{position:relative;max-width:330px;margin:0 auto;aspect-ratio:1}
+.interior{position:absolute;inset:7%;border-radius:50%;background:radial-gradient(circle,#4a3a10,#120d03 70%);
+  display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:3px;padding:20%;overflow:hidden}
+.gold{width:44px;height:18px;background:linear-gradient(180deg,#ffe98a,#c9962a 60%,#8f6a14);border-radius:2px;box-shadow:0 0 6px #ffd04a88;opacity:0;transition:opacity .6s .3s}
+body.s-unlocked .gold{opacity:1}
+#door{position:absolute;inset:0;width:100%;height:100%;transform-origin:0% 50%;transition:transform 1.1s cubic-bezier(.6,0,.2,1)}
+body.s-unlocked #door{transform:perspective(900px) rotateY(-78deg)}
+#dial{transform-origin:200px 200px;transition:transform .7s cubic-bezier(.3,1.4,.5,1)}
+.spokes{transform-origin:200px 200px}
+body.s-armed .spokes{animation:none}
+.lamps{display:flex;justify-content:center;gap:10px;margin:6px 0 2px}
+.lamp{width:14px;height:14px;border-radius:50%;background:#2a1010;border:1px solid #402020}
+body.s-locked .lamp.l-lock{background:var(--bad);box-shadow:0 0 12px var(--bad)}
+body.s-denied .lamp.l-lock,body.s-lockdown .lamp.l-lock{background:var(--bad);box-shadow:0 0 12px var(--bad);animation:blink .4s steps(2) infinite}
+body.s-armed .lamp.l-arm{background:var(--warn);box-shadow:0 0 12px var(--warn)}
+body.s-unlocked .lamp.l-open{background:var(--ok);box-shadow:0 0 12px var(--ok)}
+
+.tumblers{display:flex;justify-content:center;gap:12px;margin:10px 0}
+.tum{width:64px;height:78px;border:2px solid var(--line);border-radius:4px;display:flex;align-items:center;justify-content:center;
+  font-size:38px;color:var(--dim);background:#0a0f12;position:relative;transition:.2s}
+.tum.done{border-color:var(--ok);color:var(--ok);text-shadow:0 0 14px var(--ok);box-shadow:0 0 14px #35ff8c44;animation:pop .35s}
+.tum.cur{border-color:var(--accent)}
+.tum .ring{position:absolute;left:0;right:0;bottom:0;height:5px;background:var(--accent);width:calc(var(--p,0)*100%);box-shadow:0 0 8px var(--accent)}
+@keyframes pop{50%{transform:scale(1.12)}}
+.hint{text-align:center;min-height:42px;font-size:15px;letter-spacing:.06em;color:var(--text);padding:0 10px}
+.timer{text-align:center;font-size:12px;color:var(--dim);letter-spacing:.2em;min-height:16px}
+.btns{display:flex;gap:10px;padding:10px 12px 14px}
+button{flex:1;font-family:var(--mono);font-size:15px;letter-spacing:.2em;padding:13px 8px;cursor:pointer;
+  background:#0a0f12;color:var(--text);border:1px solid var(--steel);border-radius:3px;transition:.15s}
+button:hover:not(:disabled){border-color:var(--accent);color:var(--accent);box-shadow:0 0 14px color-mix(in srgb,var(--accent) 40%,transparent)}
+button:disabled{opacity:.35;cursor:not-allowed}
+#arm{border-color:var(--warn);color:var(--warn)}
+.log{height:150px;overflow:auto;font-size:12px;line-height:1.55;padding:8px 12px;color:var(--dim)}
+.log div b{color:var(--text);font-weight:normal}
+.log .good b{color:var(--ok)} .log .badm b{color:var(--bad)}
+
+/* banner */
+#banner{position:fixed;left:0;right:0;top:34%;text-align:center;pointer-events:none;opacity:0;transform:scale(.9);transition:.25s;z-index:9;
+  padding:22px 10px;background:#000b;border-top:2px solid var(--accent);border-bottom:2px solid var(--accent)}
+#banner.show{opacity:1;transform:none}
+#banner h1{margin:0;font-size:clamp(30px,6vw,64px);letter-spacing:.18em;color:var(--accent);text-shadow:0 0 28px var(--accent)}
+#banner p{margin:6px 0 0;color:var(--text);letter-spacing:.2em;font-size:14px}
+body.s-lockdown #banner h1{animation:blink .5s steps(2) infinite}
+.foot{max-width:1280px;margin:0 auto;padding:0 20px 24px;color:var(--dim);font-size:11px;letter-spacing:.1em;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+#snd{flex:none;padding:3px 10px;font-size:11px;letter-spacing:.1em}
+</style>
+</head>
+<body class="s-locked">
+<header>
+  <div class="brand">VAULT <b>193</b><small>FIRST NATIONAL BANK // BASEMENT B-3 // NEURAL ENTRY SYSTEM</small></div>
+  <div class="chips">
+    <div class="chip" id="chcam"><i></i>CAM-01</div>
+    <div class="chip" id="chnn"><i></i>CNN <span id="model">-</span></div>
+    <div class="chip" id="chfps">-- fps</div>
+    <div class="chip" id="statechip">LOCKED</div>
+  </div>
+</header>
+
+<main>
+  <section>
+    <div class="panel">
+      <h3><span>SURVEILLANCE // CAM-01</span><span id="roitxt">TARGET ZONE</span></h3>
+      <div class="cam">
+        <img src="/video" alt="live camera">
+        <div class="roi" id="roi"><b></b><b></b><b></b><b></b></div>
+        <div class="scan"></div><div class="vig"></div>
+        <div class="rec">REC</div>
+        <div class="camid" id="camid">PLACE HAND IN THE BRACKETS</div>
+        <div class="nocam" id="nocam">NO SIGNAL<br>CHECK CAMERA FEED</div>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:16px">
+      <h3><span>NEURAL SCANNER</span><span>3-LAYER CNN</span></h3>
+      <div class="pad read">
+        <div class="glyph"><span id="glyph">-</span><small>DETECTED</small></div>
+        <div class="bars" id="bars"></div>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:16px">
+      <h3><span>NEURAL VISION</span><span>WHAT EACH LAYER SEES</span></h3>
+      <div class="pad"><img id="maps" alt="feature maps" style="width:100%;display:block;image-rendering:auto;border:1px solid var(--line);min-height:120px"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="panel">
+      <h3><span>VAULT DOOR</span><span id="attempts">ATTEMPTS 0/3</span></h3>
+      <div class="vaultwrap">
+        <div class="lamps"><div class="lamp l-lock"></div><div class="lamp l-arm"></div><div class="lamp l-open"></div></div>
+        <div class="stage">
+          <div class="interior" id="interior"></div>
+          <svg id="door" viewBox="0 0 400 400">
+            <defs>
+              <radialGradient id="face" cx="40%" cy="35%"><stop offset="0" stop-color="#56636e"/><stop offset=".7" stop-color="#2b353d"/><stop offset="1" stop-color="#171d22"/></radialGradient>
+              <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9aa8b3"/><stop offset=".5" stop-color="#3a444c"/><stop offset="1" stop-color="#8b99a5"/></linearGradient>
+            </defs>
+            <circle cx="200" cy="200" r="195" fill="url(#rim)"/>
+            <circle cx="200" cy="200" r="180" fill="url(#face)" stroke="#0b0f12" stroke-width="4"/>
+            <g id="bolts"></g>
+            <circle cx="200" cy="200" r="120" fill="#10161a" stroke="#6c7a86" stroke-width="3"/>
+            <g id="dial">
+              <circle cx="200" cy="200" r="112" fill="#1a2228" stroke="#2e3b45" stroke-width="2"/>
+              <g id="ticks"></g>
+              <polygon points="200,92 192,106 208,106" fill="var(--accent)"/>
+            </g>
+            <g class="spokes">
+              <circle cx="200" cy="200" r="34" fill="url(#rim)" stroke="#0b0f12" stroke-width="3"/>
+              <g stroke="#8b99a5" stroke-width="9" stroke-linecap="round">
+                <line x1="200" y1="200" x2="200" y2="150"/><line x1="200" y1="200" x2="200" y2="250"/>
+                <line x1="200" y1="200" x2="150" y2="200"/><line x1="200" y1="200" x2="250" y2="200"/>
+              </g>
+              <circle cx="200" cy="200" r="12" fill="var(--accent)"/>
+            </g>
+          </svg>
+        </div>
+        <div class="tumblers" id="tums"></div>
+        <div class="hint" id="hint">-</div>
+        <div class="timer" id="timer"></div>
+      </div>
+      <div class="btns">
+        <button id="arm" onclick="post('/api/arm')">ARM</button>
+        <button id="lockbtn" onclick="post('/api/lock')">LOCK</button>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:16px">
+      <h3><span>SECURITY LOG</span><button id="snd" onclick="toggleSound()">SOUND OFF</button></h3>
+      <div class="log" id="log"></div>
+    </div>
+  </section>
+</main>
+<div class="foot"><span>SPACE = ARM &nbsp; L = LOCK</span><span>CODE: 3 NUMBERS, 1-5. REMOVE YOUR HAND BETWEEN NUMBERS.</span></div>
+<div id="banner"><h1 id="bt">-</h1><p id="bs"></p></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const post = u => fetch(u, {method: 'POST', body: '{}'}).catch(() => {});
+let sound = false, ac = null, last = {state: 'LOCKED', entered: 0};
+
+// ---- build static bits
+(() => {
+  let b = ''; for (let i = 0; i < 12; i++) { const a = i * 30 * Math.PI / 180;
+    b += `<circle cx="${200 + 158 * Math.sin(a)}" cy="${200 - 158 * Math.cos(a)}" r="7" fill="#1c242a" stroke="#7a8893" stroke-width="2"/>`; }
+  $('bolts').innerHTML = b;
+  let t = ''; for (let i = 0; i < 60; i++) { const a = i * 6 * Math.PI / 180, big = i % 12 === 0, r1 = big ? 90 : 98;
+    t += `<line x1="${200 + 106 * Math.sin(a)}" y1="${200 - 106 * Math.cos(a)}" x2="${200 + r1 * Math.sin(a)}" y2="${200 - r1 * Math.cos(a)}" stroke="${big ? '#cfe3d6' : '#5d6c77'}" stroke-width="${big ? 3 : 1.5}"/>`;
+    if (big) t += `<text x="${200 + 74 * Math.sin(a)}" y="${200 - 74 * Math.cos(a) + 7}" text-anchor="middle" font-size="22" fill="#cfe3d6" font-family="Consolas,monospace">${i / 12 + 1}</text>`; }
+  $('ticks').innerHTML = t;
+  let g = ''; for (let i = 0; i < 18; i++) g += '<div class="gold"></div>'; $('interior').innerHTML = g;
+  $('tums').innerHTML = [0, 1, 2].map(i => `<div class="tum" id="t${i}"><span>?</span><div class="ring"></div></div>`).join('');
+})();
+
+function beep(f, d, type = 'square', v = .05, when = 0) {
+  if (!sound) return;
+  try { ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+    const o = ac.createOscillator(), g = ac.createGain(); o.type = type; o.frequency.value = f; g.gain.value = v;
+    o.connect(g); g.connect(ac.destination); const t = ac.currentTime + when; o.start(t); o.stop(t + d); } catch (e) {}
+}
+function toggleSound() { sound = !sound; $('snd').textContent = sound ? 'SOUND ON' : 'SOUND OFF'; if (sound) beep(660, .1); }
+addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); post('/api/arm'); } if (e.key === 'l' || e.key === 'L') post('/api/lock'); });
+
+let barsBuilt = '';
+function render(s) {
+  document.body.className = 's-' + s.state.toLowerCase();
+  $('statechip').textContent = {LOCKED: 'LOCKED', ARMED: 'ARMED', UNLOCKED: 'VAULT OPEN', DENIED: 'DENIED', LOCKDOWN: 'LOCKDOWN'}[s.state];
+  $('chcam').className = 'chip' + (s.cam_ok ? ' on' : ''); $('nocam').style.display = s.cam_ok ? 'none' : 'flex';
+  $('chnn').className = 'chip on'; $('model').textContent = s.model.replace('finger_cnn_', '').replace('.pt', '');
+  $('chfps').textContent = s.fps + ' fps / ' + s.ms + ' ms';
+  $('attempts').textContent = `ATTEMPTS ${s.attempts}/${s.max_attempts}`;
+
+  // ROI brackets over the feed (frame is 640x480)
+  const r = s.roi, el = $('roi');
+  el.style.left = (r.x / 640 * 100) + '%'; el.style.top = (r.y / 480 * 100) + '%';
+  el.style.width = (r.size / 640 * 100) + '%'; el.style.height = (r.size / 480 * 100) + '%';
+
+  // scanner
+  const lab = s.label, isDigit = '12345'.includes(lab) && lab.length === 1;
+  $('glyph').textContent = lab === 'empty' ? '∅' : (lab === '0' ? '✊' : lab);
+  $('glyph').style.fontSize = lab === 'empty' || lab === '0' ? '60px' : '76px';
+  const key = s.classes.join(',');
+  if (barsBuilt !== key) { barsBuilt = key;
+    $('bars').innerHTML = s.classes.map(c => `<div class="bar" id="b_${c}"><span class="k">${c === 'empty' ? 'EMPTY' : (c === '0' ? 'FIST' : c)}</span><div class="t"><div class="f"></div></div><span class="v"></span></div>`).join(''); }
+  s.classes.forEach(c => { const b = $('b_' + c), p = s.probs[c] || 0;
+    b.querySelector('.f').style.width = (p * 100) + '%'; b.querySelector('.v').textContent = Math.round(p * 100) + '%'; b.classList.toggle('top', c === lab); });
+
+  // tumblers
+  for (let i = 0; i < s.of; i++) { const t = $('t' + i);
+    const done = i < s.entered || s.state === 'UNLOCKED';
+    const cur = s.state === 'ARMED' && i === s.entered;
+    t.className = 'tum' + (done ? ' done' : '') + (cur ? ' cur' : '');
+    t.firstChild.textContent = done ? '●' : (cur && s.candidate ? s.candidate : '?');
+    t.style.setProperty('--p', cur ? s.hold : 0); }
+
+  // door dial turns with each locked-in digit
+  $('dial').style.transform = `rotate(${(s.state === 'UNLOCKED' ? 360 : s.entered * 72 * (s.entered % 2 ? 1 : -1))}deg)`;
+
+  // hint line + timer
+  let hint = '', tm = '';
+  if (s.state === 'LOCKED') hint = 'Vault sealed. Press ARM (or SPACE) to start the job.';
+  else if (s.state === 'ARMED') {
+    hint = s.need_clear && s.entered > 0 ? 'Digit locked. Pull your hand away...' :
+      (s.candidate ? `Hold steady... reading ${s.candidate}` : `Show number ${s.entered + 1} of ${s.of} in the brackets`);
+    tm = `ENTRY WINDOW ${s.remaining.toFixed(0)}s`; }
+  else if (s.state === 'UNLOCKED') { hint = 'The vault is open. Grab the gold.'; tm = `RE-LOCKING IN ${s.remaining.toFixed(0)}s`; }
+  else if (s.state === 'DENIED') { hint = 'Wrong combination.'; }
+  else if (s.state === 'LOCKDOWN') { hint = 'Entry disabled. Wait for the lockdown to end.'; tm = `LOCKDOWN ${s.remaining.toFixed(0)}s`; }
+  $('hint').textContent = hint; $('timer').textContent = tm;
+  $('arm').disabled = s.state !== 'LOCKED'; $('lockbtn').disabled = s.state === 'LOCKED' || s.state === 'LOCKDOWN';
+  $('camid').textContent = s.state === 'ARMED' ? 'SCANNING FOR HAND...' : 'PLACE HAND IN THE BRACKETS';
+
+  // banner
+  const bn = $('banner'); let show = false;
+  if (s.state === 'UNLOCKED') { show = true; $('bt').textContent = 'ACCESS GRANTED'; $('bs').textContent = `VAULT OPEN // RE-LOCKING IN ${s.remaining.toFixed(0)}s`; }
+  if (s.state === 'DENIED') { show = true; $('bt').textContent = 'ACCESS DENIED'; $('bs').textContent = `WRONG COMBINATION // ATTEMPT ${s.attempts} OF ${s.max_attempts}`; }
+  if (s.state === 'LOCKDOWN') { show = true; $('bt').textContent = 'SILENT ALARM'; $('bs').textContent = `SECURITY LOCKDOWN // ${s.remaining.toFixed(0)}s`; }
+  bn.classList.toggle('show', show);
+
+  // log
+  $('log').innerHTML = s.events.map(e => {
+    const cls = /GRANTED/.test(e.msg) ? 'good' : (/DENIED|ALARM|TIMEOUT/.test(e.msg) ? 'badm' : '');
+    return `<div class="${cls}">T-${e.ago.toFixed(1).padStart(5, ' ')}s &nbsp;<b>${e.msg}</b></div>`; }).join('');
+  $('log').scrollTop = $('log').scrollHeight;
+
+  // sounds on transitions
+  if (s.state !== last.state) {
+    if (s.state === 'ARMED') { beep(520, .12); beep(780, .12, 'square', .05, .14); }
+    if (s.state === 'UNLOCKED') [523, 659, 784, 1047].forEach((f, i) => beep(f, .18, 'triangle', .07, i * .12));
+    if (s.state === 'DENIED') { beep(180, .5, 'sawtooth', .06); }
+    if (s.state === 'LOCKDOWN') [0, .35, .7, 1.05].forEach(w => { beep(900, .17, 'square', .05, w); beep(600, .17, 'square', .05, w + .17); });
+  } else if (s.entered > last.entered) beep(880, .1, 'square', .05);
+  last = s;
+}
+
+async function poll() {
+  try { render(await (await fetch('/api/state')).json()); } catch (e) { $('chcam').className = 'chip'; }
+  setTimeout(poll, 140);
+}
+poll();
+// feature-map picture: load the next one off-screen, swap when ready (no flicker)
+(function loop() {
+  const im = new Image();
+  im.onload = () => { $('maps').src = im.src; setTimeout(loop, 350); };
+  im.onerror = () => setTimeout(loop, 1500);
+  im.src = '/maps.jpg?' + Date.now();
+})();
+</script>
+</body>
+</html>

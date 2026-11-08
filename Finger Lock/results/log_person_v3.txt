@@ -1,0 +1,47 @@
+classes: ['0', '1', '2', '3', '4', '5', 'empty']
+split=person: train 1056, val 184, test 210
+parameters: 12407
+epoch   1  train loss 1.914 acc 0.21  val loss 1.889 acc 0.24
+epoch   6  train loss 1.017 acc 0.61  val loss 1.460 acc 0.37
+epoch  11  train loss 0.823 acc 0.69  val loss 0.682 acc 0.70
+epoch  16  train loss 0.792 acc 0.70  val loss 0.608 acc 0.74
+epoch  21  train loss 0.746 acc 0.72  val loss 0.467 acc 0.88
+epoch  26  train loss 0.674 acc 0.75  val loss 0.577 acc 0.73
+epoch  31  train loss 0.639 acc 0.77  val loss 0.866 acc 0.54
+epoch  36  train loss 0.631 acc 0.79  val loss 4.659 acc 0.16
+epoch  41  train loss 0.616 acc 0.78  val loss 0.441 acc 0.82
+epoch  46  train loss 0.631 acc 0.76  val loss 0.408 acc 0.91
+epoch  51  train loss 0.541 acc 0.82  val loss 0.398 acc 0.88
+epoch  56  train loss 0.554 acc 0.79  val loss 1.692 acc 0.43
+epoch  61  train loss 0.490 acc 0.83  val loss 0.630 acc 0.65
+epoch  66  train loss 0.535 acc 0.81  val loss 0.446 acc 0.84
+epoch  71  train loss 0.493 acc 0.82  val loss 0.313 acc 0.90
+epoch  76  train loss 0.494 acc 0.84  val loss 0.313 acc 0.89
+epoch  81  train loss 0.453 acc 0.84  val loss 2.803 acc 0.43
+epoch  86  train loss 0.439 acc 0.86  val loss 0.275 acc 0.92
+epoch  91  train loss 0.438 acc 0.85  val loss 0.361 acc 0.85
+epoch  96  train loss 0.464 acc 0.85  val loss 1.133 acc 0.54
+epoch 101  train loss 0.438 acc 0.85  val loss 8.271 acc 0.15
+epoch 106  train loss 0.465 acc 0.84  val loss 0.385 acc 0.86
+epoch 111  train loss 0.418 acc 0.85  val loss 0.926 acc 0.60
+epoch 116  train loss 0.422 acc 0.85  val loss 0.608 acc 0.73
+epoch 121  train loss 0.404 acc 0.87  val loss 0.272 acc 0.92
+epoch 126  train loss 0.408 acc 0.86  val loss 2.719 acc 0.26
+epoch 131  train loss 0.374 acc 0.87  val loss 0.454 acc 0.84
+epoch 136  train loss 0.409 acc 0.87  val loss 0.235 acc 0.91
+epoch 141  train loss 0.402 acc 0.87  val loss 0.238 acc 0.92
+epoch 146  train loss 0.354 acc 0.88  val loss 0.381 acc 0.88
+epoch 150  train loss 0.404 acc 0.86  val loss 0.297 acc 0.91
+trained in 441s
+
+TEST accuracy: 0.652  (137/210)
+per class: {'0': '30/30', '1': '14/30', '2': '17/30', '3': '21/30', '4': '17/30', '5': '8/30', 'empty': '30/30'}
+confusion matrix (rows = true, cols = predicted):
+ [[30  0  0  0  0  0  0]
+ [ 0 14 16  0  0  0  0]
+ [ 1  8 17  4  0  0  0]
+ [ 1  3  5 21  0  0  0]
+ [ 0  1  0 12 17  0  0]
+ [ 0  1  0  1 20  8  0]
+ [ 0  0  0  0  0  0 30]]
+saved model and plot for tag: person_v3
