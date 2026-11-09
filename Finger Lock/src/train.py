@@ -34,6 +34,8 @@ ap.add_argument("--epochs", type=int, default=150)
 ap.add_argument("--lr", type=float, default=1e-3)
 ap.add_argument("--seed", type=int, default=0)
 ap.add_argument("--tag", default="")
+ap.add_argument("--holdout", default=None,
+                help="with --split person: this person is the test set, everyone else trains")
 args = ap.parse_args()
 random.seed(args.seed); np.random.seed(args.seed); torch.manual_seed(args.seed)
 os.makedirs(OUT, exist_ok=True); os.makedirs(MODELS, exist_ok=True)
@@ -58,7 +60,8 @@ for ci, c in enumerate(classes):
             img = preprocess(cv2.imread(f), roi)
             who = os.path.basename(f).split("_")[0]
             if args.split == "person":
-                if who != "jude":
+                is_test = (who == args.holdout) if args.holdout else (who != "jude")
+                if is_test:
                     part = "test"
                 else:
                     part = "train" if i / n < 0.85 else "val"

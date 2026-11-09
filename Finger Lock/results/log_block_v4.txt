@@ -1,0 +1,47 @@
+classes: ['0', '1', '2', '3', '4', '5', 'empty']
+split=block: train 1183, val 259, test 248
+parameters: 12407
+epoch   1  train loss 1.926 acc 0.19  val loss 1.821 acc 0.25
+epoch   6  train loss 1.137 acc 0.54  val loss 1.203 acc 0.45
+epoch  11  train loss 0.964 acc 0.62  val loss 0.757 acc 0.73
+epoch  16  train loss 0.874 acc 0.67  val loss 0.644 acc 0.77
+epoch  21  train loss 0.817 acc 0.68  val loss 0.666 acc 0.72
+epoch  26  train loss 0.800 acc 0.69  val loss 0.577 acc 0.78
+epoch  31  train loss 0.723 acc 0.73  val loss 0.632 acc 0.75
+epoch  36  train loss 0.739 acc 0.73  val loss 2.862 acc 0.26
+epoch  41  train loss 0.666 acc 0.74  val loss 0.461 acc 0.85
+epoch  46  train loss 0.644 acc 0.76  val loss 0.497 acc 0.82
+epoch  51  train loss 0.602 acc 0.78  val loss 0.520 acc 0.81
+epoch  56  train loss 0.578 acc 0.78  val loss 0.743 acc 0.70
+epoch  61  train loss 0.580 acc 0.80  val loss 0.427 acc 0.88
+epoch  66  train loss 0.587 acc 0.79  val loss 0.397 acc 0.86
+epoch  71  train loss 0.540 acc 0.81  val loss 0.429 acc 0.88
+epoch  76  train loss 0.526 acc 0.82  val loss 0.364 acc 0.91
+epoch  81  train loss 0.491 acc 0.82  val loss 4.564 acc 0.22
+epoch  86  train loss 0.511 acc 0.81  val loss 0.970 acc 0.63
+epoch  91  train loss 0.501 acc 0.81  val loss 0.342 acc 0.90
+epoch  96  train loss 0.460 acc 0.84  val loss 0.336 acc 0.90
+epoch 101  train loss 0.458 acc 0.84  val loss 0.312 acc 0.92
+epoch 106  train loss 0.485 acc 0.82  val loss 0.424 acc 0.87
+epoch 111  train loss 0.447 acc 0.84  val loss 0.323 acc 0.90
+epoch 116  train loss 0.435 acc 0.87  val loss 0.333 acc 0.90
+epoch 121  train loss 0.478 acc 0.84  val loss 0.473 acc 0.86
+epoch 126  train loss 0.420 acc 0.84  val loss 0.470 acc 0.79
+epoch 131  train loss 0.452 acc 0.85  val loss 0.346 acc 0.90
+epoch 136  train loss 0.393 acc 0.87  val loss 0.420 acc 0.85
+epoch 141  train loss 0.419 acc 0.85  val loss 0.283 acc 0.92
+epoch 146  train loss 0.405 acc 0.86  val loss 0.247 acc 0.93
+epoch 150  train loss 0.447 acc 0.84  val loss 1.448 acc 0.68
+trained in 730s
+
+TEST accuracy: 0.895  (222/248)
+per class: {'0': '37/37', '1': '36/36', '2': '28/40', '3': '27/40', '4': '40/40', '5': '35/36', 'empty': '19/19'}
+confusion matrix (rows = true, cols = predicted):
+ [[37  0  0  0  0  0  0]
+ [ 0 36  0  0  0  0  0]
+ [ 3  6 28  3  0  0  0]
+ [ 0  0 12 27  1  0  0]
+ [ 0  0  0  0 40  0  0]
+ [ 0  0  0  0  1 35  0]
+ [ 0  0  0  0  0  0 19]]
+saved model and plot for tag: block_v4
