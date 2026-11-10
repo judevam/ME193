@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+data/
+results/snapshot_*.jpg
+secret_code.txt
+download*.zip
+*.log
+movie/out/
