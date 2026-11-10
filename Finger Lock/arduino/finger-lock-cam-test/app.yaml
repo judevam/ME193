@@ -1,0 +1,5 @@
+name: Finger Lock Cam Test
+description: "Finger Lock: webcam capture page (8080) and the CNN vault lock (8090) with servo latch"
+icon: 📷
+ports: [8080, 8090]
+bricks: []

@@ -1,0 +1,1 @@
+# OpenCV (cv2) is already provided by the board's Python image
